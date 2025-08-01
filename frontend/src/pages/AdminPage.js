@@ -28,6 +28,8 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import UserManagement from '../components/UserManagement';
+import TorrentManagement from '../components/TorrentManagement';
 import api from '../services/api';
 import { formatNumber } from '../utils/formatters';
 
@@ -107,6 +109,13 @@ const AdminPage = () => {
 
   const getQuickActions = () => {
     const allQuickActions = [
+      {
+        title: '种子管理',
+        description: '审核、管理和监控种子文件',
+        icon: <Reviews />,
+        action: () => setSelectedSection('torrent-review'),
+        color: 'primary',
+      },
       {
         title: '用户管理',
         description: '管理用户账户和权限',
@@ -233,18 +242,7 @@ const AdminPage = () => {
             <Typography variant="h5" sx={{ mb: 3 }}>
               种子管理
             </Typography>
-            <Paper sx={{ p: 3, textAlign: 'center' }}>
-              <Typography variant="body1" sx={{ mb: 2 }}>
-                点击下方按钮进入种子管理页面
-              </Typography>
-              <Button 
-                variant="contained" 
-                startIcon={<Reviews />}
-                onClick={() => navigate('/admin/review')}
-              >
-                进入种子管理
-              </Button>
-            </Paper>
+            <TorrentManagement />
           </Box>
         );
       case 'user-management':
@@ -253,11 +251,7 @@ const AdminPage = () => {
             <Typography variant="h5" sx={{ mb: 3 }}>
               用户管理
             </Typography>
-            <Paper sx={{ p: 3, textAlign: 'center' }}>
-              <Typography variant="body1">
-                用户管理功能正在开发中...
-              </Typography>
-            </Paper>
+            <UserManagement />
           </Box>
         );
       case 'category-management':

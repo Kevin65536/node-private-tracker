@@ -14,6 +14,10 @@ const torrentRoutes = require('./routes/torrents');
 const userRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
 const trackerRoutes = require('./routes/tracker');
+const statsRoutes = require('./routes/stats');
+
+// 导入统计调度器
+const statsScheduler = require('./utils/statsScheduler');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -182,6 +186,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/torrents', torrentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/stats', statsRoutes);
 
 // Tracker 路由 (放在最后，避免拦截其他路由)
 app.use('/', trackerRoutes);
@@ -250,6 +255,13 @@ async function startServer() {
       console.log(`💊 健康检查: http://localhost:${PORT}/api/health`);
       console.log(`🗄️  数据库: ${sequelize.getDatabaseName()} (${sequelize.getDialect()})`);
       console.log(`🌍 环境: ${process.env.NODE_ENV || 'development'}`);
+      
+      // 启动统计调度器
+      if (process.env.NODE_ENV !== 'test') {
+        setTimeout(() => {
+          statsScheduler.start();
+        }, 5000); // 延迟5秒启动，确保数据库连接稳定
+      }
     });
     
   } catch (error) {
@@ -289,6 +301,9 @@ async function initializeUserPasskeys() {
 process.on('SIGINT', async () => {
   console.log('\n🛑 正在关闭服务器...');
   try {
+    // 停止统计调度器
+    statsScheduler.stop();
+    
     await sequelize.close();
     console.log('✅ 数据库连接已关闭');
     process.exit(0);

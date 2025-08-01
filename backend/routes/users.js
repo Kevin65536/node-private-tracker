@@ -1,4 +1,5 @@
 const express = require('express');
+const { Op } = require('sequelize');
 const { User, UserStats, Torrent, Download } = require('../models');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
@@ -157,9 +158,19 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
+    const search = req.query.search || '';
     const offset = (page - 1) * limit;
 
+    const whereClause = {};
+    if (search) {
+      whereClause[Op.or] = [
+        { username: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } }
+      ];
+    }
+
     const { count, rows: users } = await User.findAndCountAll({
+      where: whereClause,
       limit,
       offset,
       order: [['created_at', 'DESC']],

@@ -313,21 +313,45 @@ async function updateUserStats(userId, uploadedDiff, downloadedDiff) {
     const [userStats] = await UserStats.findOrCreate({
       where: { user_id: userId },
       defaults: {
+        uploaded: 0,
+        downloaded: 0,
         torrents_uploaded: 0,
         torrents_seeding: 0,
         torrents_leeching: 0,
-        uploaded_bytes: 0,
-        downloaded_bytes: 0
+        seedtime: 0,
+        leechtime: 0,
+        bonus_points: 0,
+        invitations: 0
       }
     });
 
-    await userStats.increment({
-      uploaded_bytes: uploadedDiff,
-      downloaded_bytes: downloadedDiff
-    });
+    // 只有当确实有数据变化时才更新
+    if (uploadedDiff > 0 || downloadedDiff > 0) {
+      await userStats.increment({
+        uploaded: uploadedDiff,
+        downloaded: downloadedDiff
+      });
+
+      // 根据上传下载量计算奖励积分
+      const bonusPoints = calculateBonusPoints(uploadedDiff, downloadedDiff);
+      if (bonusPoints > 0) {
+        await userStats.increment({
+          bonus_points: bonusPoints
+        });
+      }
+    }
   } catch (error) {
     console.error('更新用户统计失败:', error);
   }
+}
+
+/**
+ * 计算奖励积分
+ */
+function calculateBonusPoints(uploadedDiff, downloadedDiff) {
+  // 基础规则：每上传1GB获得1积分，下载不扣分
+  const uploadGBs = uploadedDiff / (1024 * 1024 * 1024);
+  return Math.floor(uploadGBs * 1);
 }
 
 /**

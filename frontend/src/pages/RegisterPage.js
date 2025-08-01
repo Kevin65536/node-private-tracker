@@ -22,7 +22,6 @@ const RegisterPage = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    invitationCode: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -101,11 +100,11 @@ const RegisterPage = () => {
       if (result.success) {
         navigate('/');
       } else {
-        if (result.error?.includes('details')) {
+        if (result.details) {
           // 服务器验证错误
           const serverErrors = {};
-          result.error.details?.forEach(detail => {
-            serverErrors[detail.param] = detail.msg;
+          result.details.forEach(detail => {
+            serverErrors[detail.path] = detail.msg;
           });
           setFieldErrors(serverErrors);
         } else {
@@ -206,19 +205,6 @@ const RegisterPage = () => {
               disabled={loading}
               error={!!fieldErrors.confirmPassword}
               helperText={fieldErrors.confirmPassword}
-            />
-            
-            <TextField
-              margin="normal"
-              fullWidth
-              name="invitationCode"
-              label="邀请码（可选）"
-              id="invitationCode"
-              value={formData.invitationCode}
-              onChange={handleChange}
-              disabled={loading}
-              error={!!fieldErrors.invitationCode}
-              helperText={fieldErrors.invitationCode || "如果您有邀请码，请输入以获得更多权限"}
             />
             
             <Button

@@ -79,7 +79,16 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true, user: newUser };
     } catch (error) {
-      const message = error.response?.data?.error || '注册失败';
+      const errorData = error.response?.data;
+      if (errorData?.details) {
+        // 返回详细的验证错误
+        return { 
+          success: false, 
+          error: errorData.error || '输入验证失败',
+          details: errorData.details 
+        };
+      }
+      const message = errorData?.error || '注册失败';
       return { success: false, error: message };
     }
   };

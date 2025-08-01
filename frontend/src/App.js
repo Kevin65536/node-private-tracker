@@ -14,6 +14,7 @@ import AdminReviewPage from './pages/AdminReviewPage';
 import AdminTestPage from './pages/AdminTestPage';
 import AdminPage from './pages/AdminPage';
 import ImageTestPage from './pages/ImageTestPage';
+import StatsPage from './components/StatsPage';
 
 // 创建Material-UI主题
 const theme = createTheme({
@@ -51,7 +52,7 @@ function App() {
                 <Route path="/test/images" element={<ImageTestPage />} />
                 {/* TODO: 添加更多路由 */}
                 <Route path="/dashboard" element={<div>个人中心 - 开发中</div>} />
-                <Route path="/stats" element={<div>统计页面 - 开发中</div>} />
+                <Route path="/stats" element={<StatsPage />} />
                 <Route path="/profile" element={<div>个人资料 - 开发中</div>} />
                 <Route path="/admin" element={<AdminPage />} />
               </Routes>

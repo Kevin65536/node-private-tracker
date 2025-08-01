@@ -90,7 +90,8 @@ Download.belongsTo(Torrent, {
 });
 
 User.hasOne(UserStats, {
-  foreignKey: 'user_id'
+  foreignKey: 'user_id',
+  as: 'UserStat'
 });
 UserStats.belongsTo(User, {
   foreignKey: 'user_id'

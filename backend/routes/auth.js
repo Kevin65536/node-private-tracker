@@ -20,11 +20,7 @@ const registerValidation = [
     .isLength({ min: 6 })
     .withMessage('密码长度不能少于6位')
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage('密码必须包含大小写字母和数字'),
-  body('invitationCode')
-    .optional()
-    .isLength({ min: 8, max: 32 })
-    .withMessage('邀请码格式不正确')
+    .withMessage('密码必须包含大小写字母和数字')
 ];
 
 // 登录验证规则
@@ -57,7 +53,7 @@ router.post('/register', registerValidation, async (req, res) => {
       });
     }
 
-    const { username, email, password, invitationCode } = req.body;
+    const { username, email, password } = req.body;
 
     // 检查用户名是否已存在
     const existingUser = await User.findOne({
@@ -82,25 +78,12 @@ router.post('/register', registerValidation, async (req, res) => {
       }
     }
 
-    // 检查邀请码（如果提供）
-    let inviter = null;
-    if (invitationCode) {
-      inviter = await User.findOne({
-        where: { invitation_code: invitationCode }
-      });
-      if (!inviter) {
-        return res.status(400).json({
-          error: '邀请码无效'
-        });
-      }
-    }
-
     // 创建新用户
     const user = await User.create({
       username,
       email,
       password,
-      invited_by: inviter ? inviter.id : null,
+      invited_by: null,
       registration_ip: req.ip || req.connection.remoteAddress
     });
 
@@ -109,20 +92,9 @@ router.post('/register', registerValidation, async (req, res) => {
       user_id: user.id,
       uploaded: 0,
       downloaded: 0,
-      bonus_points: inviter ? 100.00 : 50.00, // 通过邀请注册给予额外积分
+      bonus_points: 50.00, // 默认注册积分
       invitations: 0
     });
-
-    // 如果有邀请人，给邀请人增加积分
-    if (inviter) {
-      const inviterStats = await UserStats.findOne({
-        where: { user_id: inviter.id }
-      });
-      if (inviterStats) {
-        await inviterStats.increment('bonus_points', { by: 50 });
-        await inviterStats.increment('invitations');
-      }
-    }
 
     // 生成Token
     const token = generateToken(user.id);
