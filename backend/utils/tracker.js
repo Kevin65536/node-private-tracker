@@ -1,5 +1,5 @@
 const bencode = require('bncode');
-const { Peer, Torrent, AnnounceLog, UserStats, InfoHashVariant } = require('../models');
+const { Peer, Torrent, AnnounceLog, UserStats } = require('../models');
 const { validatePasskey } = require('../utils/passkey');
 
 /**
@@ -211,29 +211,10 @@ async function handleAnnounce(req, res) {
       return sendFailureResponse(res, 'Invalid info_hash format');
     }
 
-    // 查找种子 - 首先尝试直接匹配，然后通过映射表查找
+    // 查找种子 - 直接匹配
     let torrent = await Torrent.findOne({
       where: { info_hash: infoHashHex }
     });
-
-    let isVariant = false;
-    if (!torrent) {
-      // 直接匹配失败，尝试通过映射表查找
-      const variant = await InfoHashVariant.findOne({
-        where: { variant_info_hash: infoHashHex },
-        include: [{
-          model: Torrent,
-          as: 'originalTorrent',
-          where: { status: 'approved' }
-        }]
-      });
-
-      if (variant) {
-        torrent = variant.originalTorrent;
-        isVariant = true;
-        console.log(`📍 通过映射表找到种子: ${variant.variant_info_hash} -> ${torrent.info_hash}`);
-      }
-    }
 
     if (!torrent) {
       console.log(`❌ 种子未找到: ${infoHashHex}`);

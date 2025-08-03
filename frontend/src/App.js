@@ -17,6 +17,7 @@ import ImageTestPage from './pages/ImageTestPage';
 import NetworkTestPage from './pages/NetworkTestPage';
 import StatsPage from './components/StatsPage';
 import UserSettingsPage from './pages/UserSettingsPage';
+import DebugPage from './pages/DebugPage';
 
 // 创建Material-UI主题
 const theme = createTheme({
@@ -53,6 +54,7 @@ function App() {
                 <Route path="/admin/test" element={<AdminTestPage />} />
                 <Route path="/test/images" element={<ImageTestPage />} />
                 <Route path="/test/network" element={<NetworkTestPage />} />
+                <Route path="/debug" element={<DebugPage />} />
                 {/* TODO: 添加更多路由 */}
                 <Route path="/dashboard" element={<div>个人中心 - 开发中</div>} />
                 <Route path="/stats" element={<StatsPage />} />

@@ -1,28 +1,13 @@
 import axios from 'axios';
+import { getApiBaseUrl, testApiConnection, showNetworkConfig } from '../utils/networkConfig';
 
-// 动态确定API地址
-function getApiBaseUrl() {
-  // 优先使用环境变量
-  if (process.env.REACT_APP_API_URL) {
-    console.log('使用环境变量API URL:', process.env.REACT_APP_API_URL);
-    return process.env.REACT_APP_API_URL;
-  }
-  
-  // 在开发环境下，根据当前URL动态确定后端地址
-  const hostname = window.location.hostname;
-  console.log('当前访问的hostname:', hostname);
-  
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'http://localhost:3001/api';
-  } else {
-    // 使用当前访问的IP地址访问后端
-    const dynamicUrl = `http://${hostname}:3001/api`;
-    console.log('动态构建的API URL:', dynamicUrl);
-    return dynamicUrl;
-  }
-}
-
+// 获取API基础URL
 const API_BASE_URL = getApiBaseUrl();
+
+// 在开发环境下显示网络配置信息
+if (process.env.NODE_ENV === 'development') {
+  showNetworkConfig();
+}
 
 // 创建axios实例
 const api = axios.create({

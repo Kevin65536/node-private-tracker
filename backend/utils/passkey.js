@@ -101,7 +101,20 @@ async function regeneratePasskey(userId) {
  * 构建带 passkey 的 announce URL
  */
 function buildAnnounceUrl(passkey, infoHash = null) {
-  const baseUrl = process.env.ANNOUNCE_URL || 'http://localhost:3001';
+  const baseUrl = process.env.ANNOUNCE_URL;
+  
+  // 严格检查环境变量
+  if (!baseUrl) {
+    console.warn('⚠️  ANNOUNCE_URL 环境变量未设置，使用默认的 localhost');
+    console.warn('   请在 .env 文件中设置 ANNOUNCE_URL=http://your-domain:3001');
+    return `http://localhost:3001/tracker/announce/${passkey}`;
+  }
+  
+  // 检查是否仍然使用 localhost（可能是配置错误）
+  if (baseUrl.includes('localhost') && process.env.NODE_ENV === 'production') {
+    console.error('❌ 生产环境不应使用 localhost，请检查 ANNOUNCE_URL 配置');
+  }
+  
   return `${baseUrl}/tracker/announce/${passkey}`;
 }
 

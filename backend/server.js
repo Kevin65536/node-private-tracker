@@ -5,6 +5,9 @@ const morgan = require('morgan');
 const path = require('path');
 require('dotenv').config();
 
+// 自动设置网络配置
+const { setupAnnounceUrl, getAllIPs } = require('./utils/network');
+
 // 导入数据库
 const { sequelize } = require('./models');
 
@@ -29,18 +32,24 @@ app.set('trust proxy', true);
 app.use(helmet({
   contentSecurityPolicy: false // 暂时禁用CSP进行调试
 }));
+// 配置CORS - 使用动态IP配置
+const corsOrigins = [
+  'http://localhost:3000', 
+  'http://127.0.0.1:3000',
+  /^http:\/\/172\.21\.\d+\.\d+:3000$/,  // 允许同网段的其他设备
+  /^http:\/\/192\.168\.\d+\.\d+:3000$/, // 支持常见内网段
+  /^http:\/\/10\.\d+\.\d+\.\d+:3000$/   // 支持10.x.x.x网段
+];
+
+// 添加当前检测到的IP
+if (process.env.CURRENT_IP) {
+  corsOrigins.push(`http://${process.env.CURRENT_IP}:3000`);
+}
+
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? process.env.FRONTEND_URL 
-    : [
-        'http://localhost:3000', 
-        'http://127.0.0.1:3000',
-        'http://172.21.222.169:3000',  // 明确添加内网IP
-        process.env.FRONTEND_URL,     // 从环境变量读取
-        /^http:\/\/172\.21\.\d+\.\d+:3000$/,  // 允许同网段的其他设备
-        /^http:\/\/192\.168\.\d+\.\d+:3000$/, // 支持常见内网段
-        /^http:\/\/10\.\d+\.\d+\.\d+:3000$/   // 支持10.x.x.x网段
-      ],
+    : corsOrigins,
   credentials: true,
   optionsSuccessStatus: 200 // 支持旧版本浏览器
 }));
@@ -241,7 +250,23 @@ app.use((err, req, res, next) => {
 // 数据库连接和服务器启动
 async function startServer() {
   try {
-    // 连接数据库
+    // 1. 首先设置网络配置
+    console.log('🌐 正在配置网络设置...');
+    
+    // 显示所有可用的IP地址
+    const allIPs = getAllIPs();
+    console.log('📋 检测到的网络接口:');
+    allIPs.forEach(ip => {
+      const typeIcon = ip.type === 'private' ? '🏠' : 
+                      ip.type === 'public' ? '🌐' : '🔄';
+      console.log(`   ${typeIcon} ${ip.interface}: ${ip.ip} (${ip.type})`);
+    });
+    
+    // 自动设置 Announce URL
+    const networkConfig = setupAnnounceUrl(PORT);
+    console.log('');
+    
+    // 2. 连接数据库
     await sequelize.authenticate();
     console.log('✅ 数据库连接成功');
     
@@ -268,6 +293,13 @@ async function startServer() {
       console.log(`🗄️  数据库: ${sequelize.getDatabaseName()} (${sequelize.getDialect()})`);
       console.log(`🌍 环境: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🌐 服务端口: ${PORT}`);
+      console.log(`🔗 Announce URL: ${process.env.ANNOUNCE_URL}`);
+      console.log(`📍 访问地址:`);
+      console.log(`   - 前端: http://${networkConfig.ip}:3000`);
+      console.log(`   - API: http://${networkConfig.ip}:${PORT}/api`);
+      console.log(`   - Tracker: ${process.env.ANNOUNCE_URL}/tracker/announce/<passkey>`);
+      console.log(`   - 健康检查: http://${networkConfig.ip}:${PORT}/health`);
+      console.log('');
       
       // 启动统计调度器
       if (process.env.NODE_ENV !== 'test') {

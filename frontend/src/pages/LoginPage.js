@@ -118,19 +118,6 @@ const LoginPage = () => {
               </Link>
             </Box>
           </Box>
-
-          {/* 测试账户信息 */}
-          <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
-            <Typography variant="subtitle2" gutterBottom>
-              测试账户：
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              管理员账户：admin / admin123456
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              普通用户：testuser / test123456
-            </Typography>
-          </Box>
         </Paper>
       </Box>
     </Container>

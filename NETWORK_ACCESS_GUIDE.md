@@ -1,196 +1,182 @@
-# PT站内网访问配置指南
+# 内网访问配置指南
 
-## 网络配置概览
+## 🔧 解决内网访问问题
 
-你的PT站现在已经配置为支持内网访问，其他设备可以通过内网IP地址访问你的开发服务器。
+根据你的截图显示的错误 "ERR_CONNECTION_TIMED_OUT"，这是网络连接被阻止的问题。需要配置以下几个方面：
 
-### 当前网络配置
+## 🛡️ 第一步：Windows防火墙配置
 
-- **本机IP地址**: `172.21.101.2`
-- **子网掩码**: `255.255.0.0` (172.21.0.0/16)
-- **网关**: `172.21.0.1`
+### 方法1：图形界面配置
+1. 打开 "Windows Defender 防火墙"
+2. 点击 "允许应用或功能通过 Windows Defender 防火墙"
+3. 点击 "更改设置" 
+4. 点击 "允许其他应用"
+5. 浏览并添加 `node.exe`（通常在 `C:\Program Files\nodejs\node.exe`）
+6. 确保勾选 "专用" 和 "公用" 网络
 
-### 服务地址
+### 方法2：命令行配置（管理员权限）
+```cmd
+:: 允许Node.js应用通过防火墙
+netsh advfirewall firewall add rule name="Node.js App" dir=in action=allow program="C:\Program Files\nodejs\node.exe"
 
-#### 前端应用 (React)
-- 本地访问: `http://localhost:3000`
-- 内网访问: `http://172.21.101.2:3000`
+:: 或者直接开放端口
+netsh advfirewall firewall add rule name="PT-Site-Frontend" dir=in action=allow protocol=TCP localport=3000
+netsh advfirewall firewall add rule name="PT-Site-Backend" dir=in action=allow protocol=TCP localport=3001
 
-#### 后端API (Express)
-- 本地访问: `http://localhost:3001`
-- 内网访问: `http://172.21.101.2:3001`
-- API根路径: `http://172.21.101.2:3001/api`
-- Tracker服务: `http://172.21.101.2:3001/announce`
+:: 查看防火墙规则
+netsh advfirewall firewall show rule name="PT-Site-Frontend"
+netsh advfirewall firewall show rule name="PT-Site-Backend"
+```
 
-## 配置更改说明
+## 🌐 第二步：网络发现配置
 
-### 1. 后端服务器配置 (`backend/server.js`)
+### 启用网络发现
+1. 打开 "控制面板" > "网络和共享中心"
+2. 点击 "更改高级共享设置"
+3. 展开 "专用" 配置文件
+4. 选择：
+   - ✅ 启用网络发现
+   - ✅ 启用文件和打印机共享
+5. 展开 "公用" 配置文件，做同样设置
+6. 点击 "保存更改"
+
+## 🔍 第三步：验证网络配置
+
+### 检查服务器IP和端口
+```cmd
+:: 查看当前IP地址
+ipconfig
+:: 查看监听的端口
+netstat -an | findstr :3000
+netstat -an | findstr :3001
+```
+
+### 测试本地访问
+```cmd
+:: 测试本地访问
+curl http://localhost:3000
+curl http://localhost:3001/health
+:: 或用浏览器访问
+start http://localhost:3000
+```
+
+### 测试内网访问
+从其他内网设备测试：
+```cmd
+:: 替换为实际IP地址
+curl http://172.21.134.69:3000
+curl http://172.21.134.69:3001/health
+```
+
+## ⚙️ 第四步：应用配置检查
+
+### 检查绑定地址
+确保应用绑定到所有网络接口，而不是只绑定localhost：
 
 ```javascript
-// CORS配置 - 允许内网设备访问
-app.use(cors({
-  origin: [
-    'http://localhost:3000', 
-    'http://127.0.0.1:3000',
-    'http://172.21.101.2:3000',  // 本机内网IP
-    /^http:\/\/172\.21\.\d+\.\d+:3000$/  // 同网段设备
-  ],
-  credentials: true
-}));
-
-// 服务器监听所有网络接口
+// server.js 中应该是：
 app.listen(PORT, '0.0.0.0', () => {
-  // ...
+  console.log(`服务器运行在 http://0.0.0.0:${PORT}`);
+});
+
+// 而不是：
+app.listen(PORT, 'localhost', () => {
+  // 这样只能本地访问
 });
 ```
 
-### 2. 前端API配置 (`frontend/src/services/api.js`)
+## 🚨 第五步：故障排除
 
-```javascript
-// 动态API地址配置
-function getApiBaseUrl() {
-  const hostname = window.location.hostname;
-  
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'http://localhost:3001/api';
-  } else {
-    // 自动使用当前访问的IP访问后端
-    return `http://${hostname}:3001/api`;
-  }
-}
+### 常见问题和解决方案
+
+1. **端口被占用**
+```cmd
+:: 检查端口占用
+netstat -ano | findstr :3000
+netstat -ano | findstr :3001
+:: 如果被占用，结束进程或更换端口
 ```
 
-## 内网设备访问指南
+2. **应用只绑定localhost**
+检查代码中的监听配置，确保绑定到 `0.0.0.0` 而非 `localhost`
 
-### 对于同一内网的其他设备
+3. **杀毒软件阻止**
+- 检查杀毒软件是否阻止了网络连接
+- 将node.exe添加到杀毒软件白名单
 
-1. **确保设备在同一内网**: 设备IP应在 `172.21.x.x` 范围内
-2. **访问前端应用**: 在浏览器中输入 `http://172.21.101.2:3000`
-3. **直接访问API**: `http://172.21.101.2:3001/api`
+4. **路由器/网络设备限制**
+- 检查是否有企业网络策略限制
+- 咨询网络管理员是否有端口限制
 
-### 支持的设备类型
+## 🔧 第六步：自动化配置脚本
 
-- **Windows/Mac/Linux 电脑**: 使用任何现代浏览器
-- **手机/平板**: 
-  - iOS Safari
-  - Android Chrome
-  - 其他移动浏览器
-- **其他设备**: 任何支持HTTP的设备
+创建一个配置脚本来自动完成网络设置：
 
-## 防火墙配置
+```cmd
+@echo off
+echo 配置PT站内网访问...
 
-### Windows防火墙
+:: 检查管理员权限
+net session >nul 2>&1
+if %errorLevel% neq 0 (
+    echo 需要管理员权限，请右键以管理员身份运行
+    pause
+    exit /b 1
+)
 
-如果遇到访问问题，可能需要配置Windows防火墙：
+:: 配置防火墙规则
+echo 配置防火墙规则...
+netsh advfirewall firewall delete rule name="PT-Site-Frontend" >nul 2>&1
+netsh advfirewall firewall delete rule name="PT-Site-Backend" >nul 2>&1
+netsh advfirewall firewall add rule name="PT-Site-Frontend" dir=in action=allow protocol=TCP localport=3000
+netsh advfirewall firewall add rule name="PT-Site-Backend" dir=in action=allow protocol=TCP localport=3001
 
-```powershell
-# 允许端口3000和3001的入站连接
-netsh advfirewall firewall add rule name="PT Site Frontend" dir=in action=allow protocol=TCP localport=3000
-netsh advfirewall firewall add rule name="PT Site Backend" dir=in action=allow protocol=TCP localport=3001
+:: 允许Node.js程序
+for /f "tokens=*" %%i in ('where node 2^>nul') do (
+    echo 允许Node.js程序: %%i
+    netsh advfirewall firewall add rule name="Node.js PT-Site" dir=in action=allow program="%%i"
+)
+
+:: 显示当前IP
+echo.
+echo 当前服务器IP地址:
+for /f "tokens=2 delims=:" %%i in ('ipconfig ^| findstr "IPv4"') do echo %%i
+
+echo.
+echo 配置完成！其他用户现在应该可以通过以下地址访问：
+echo 前端: http://你的IP:3000
+echo API: http://你的IP:3001
+echo.
+pause
 ```
 
-### 或通过图形界面
+## 📱 第七步：移动设备访问
 
-1. 打开"Windows Defender 防火墙"
-2. 点击"高级设置"
-3. 选择"入站规则" → "新建规则"
-4. 选择"端口" → "TCP" → 输入"3000,3001"
-5. 选择"允许连接"
-6. 应用到所有配置文件
+如果需要手机等移动设备访问：
 
-## 测试连接
+1. 确保手机连接相同WiFi网络
+2. 在手机浏览器输入：`http://172.21.134.69:3000`
+3. 如果仍无法访问，检查路由器设置中的"客户端隔离"功能是否开启
 
-### 快速测试命令
+## 🏢 企业网络注意事项
 
-```bash
-# 测试后端API健康状态
-curl http://172.21.101.2:3001/api/health
+如果在企业/学校网络环境：
 
-# 测试前端是否可访问
-curl -I http://172.21.101.2:3000
-```
+1. **端口策略**：某些机构可能阻止特定端口
+2. **防火墙策略**：可能有集中的防火墙策略
+3. **网络隔离**：不同网段可能被隔离
+4. **咨询IT管理员**：获得必要的网络权限
 
-### 浏览器测试
+## ✅ 验证清单
 
-1. **后端API测试**: 访问 `http://172.21.101.2:3001/api/health`
-2. **前端应用测试**: 访问 `http://172.21.101.2:3000`
+配置完成后，请验证：
 
-## 故障排除
+- [ ] 本地可以访问 `http://localhost:3000`
+- [ ] 本地可以访问 `http://localhost:3001/health`  
+- [ ] 内网其他设备可以访问 `http://你的IP:3000`
+- [ ] 内网其他设备可以访问 `http://你的IP:3001/health`
+- [ ] 防火墙规则已正确添加
+- [ ] 网络发现已启用
+- [ ] 应用监听在 `0.0.0.0` 而非 `localhost`
 
-### 常见问题
-
-1. **连接被拒绝**
-   - 检查防火墙设置
-   - 确认服务器正在运行
-   - 验证IP地址是否正确
-
-2. **CORS错误**
-   - 确认后端CORS配置已更新
-   - 重启后端服务器
-
-3. **API请求失败**
-   - 检查前端API配置
-   - 确认后端服务器可访问
-
-### 调试工具
-
-```bash
-# 检查端口监听状态
-netstat -an | findstr ":3000\|:3001"
-
-# 检查网络连接
-ping 172.21.101.2
-
-# 测试端口连通性
-telnet 172.21.101.2 3001
-```
-
-## 注意事项
-
-### 安全考虑
-
-- **开发环境**: 当前配置适用于开发环境
-- **生产环境**: 生产部署时需要额外的安全配置
-- **网络隔离**: 确保在受信任的内网环境中使用
-
-### 性能考虑
-
-- **网络延迟**: 内网访问可能比本地访问稍慢
-- **带宽限制**: 考虑内网带宽限制
-- **并发连接**: 注意多设备同时访问的性能影响
-
-## 高级配置
-
-### 环境变量配置
-
-创建 `.env` 文件进行自定义配置：
-
-```env
-# 前端环境变量 (frontend/.env)
-REACT_APP_API_URL=http://172.21.101.2:3001/api
-
-# 后端环境变量 (backend/.env)
-PORT=3001
-FRONTEND_URL=http://172.21.101.2:3000
-```
-
-### 动态主机名
-
-如果IP地址经常变化，可以考虑：
-
-1. **设置静态IP**: 在路由器中配置DHCP保留
-2. **使用主机名**: 配置本地DNS或hosts文件
-3. **自动发现**: 实现服务发现机制
-
----
-
-## 快速启动清单
-
-✅ 1. 更新后端CORS配置  
-✅ 2. 修改服务器监听地址  
-✅ 3. 更新前端API配置  
-✅ 4. 重启后端服务器  
-✅ 5. 配置防火墙规则  
-✅ 6. 测试内网访问  
-
-现在其他内网设备可以通过 `http://172.21.101.2:3000` 访问你的PT站了！
+完成这些配置后，内网用户就应该能够正常访问你的PT站了！

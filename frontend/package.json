@@ -22,7 +22,11 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "config": "node frontend-config.js",
+    "config-show": "node frontend-config.js --show",
+    "config-help": "node frontend-config.js --help",
+    "auto-start": "node frontend-config.js && npm start"
   },
   "eslintConfig": {
     "extends": [

@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { InfoHashVariant, Torrent } = require('./models');
+const { buildAnnounceUrl } = require('./utils/passkey');
 
 async function registerMissingVariant() {
   try {
@@ -15,14 +16,15 @@ async function registerMissingVariant() {
 
     // 注册缺失的变体
     const missingHash = '529936d5fc5685f79981fdd060687f32fd75e526';
+    const userPasskey = '9a5c1a8ea23d8b92a21ecca8751f873f'; // testuser1
     
     const [variant, created] = await InfoHashVariant.findOrCreate({
       where: { variant_info_hash: missingHash },
       defaults: {
         original_torrent_id: originalTorrent.id,
         variant_info_hash: missingHash,
-        user_passkey: '9a5c1a8ea23d8b92a21ecca8751f873f', // testuser1
-        announce_url: 'http://localhost:3001/tracker/announce/9a5c1a8ea23d8b92a21ecca8751f873f'
+        user_passkey: userPasskey,
+        announce_url: buildAnnounceUrl(userPasskey) // 使用正确的环境变量
       }
     });
 

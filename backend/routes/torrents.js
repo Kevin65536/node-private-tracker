@@ -65,6 +65,11 @@ const parseTorrentFile = async (filePath) => {
     const infoBuffer = bencode.encode(torrent.info);
     const infoHash = crypto.createHash('sha1').update(infoBuffer).digest('hex');
     
+    // 验证是否为私有种子
+    if (!torrent.info.private || torrent.info.private !== 1) {
+      throw new Error('只能上传私有种子文件（private=1）');
+    }
+    
     // 安全的字符串转换函数
     const bufferToString = (buffer) => {
       if (Buffer.isBuffer(buffer)) {
@@ -511,35 +516,24 @@ router.get('/:id/download', authenticateToken, async (req, res) => {
     }
     torrentObject['announce-list'].unshift([torrentObject.announce]);
     
-    // 添加私有种子标记
-    torrentObject.info.private = 1;
+    // 注意：不修改 torrentObject.info 部分，以保持 info_hash 一致
+    // 原始种子应该已经设置了 private 标记
     
     // 重新编码种子文件
     const modifiedTorrentData = bencode.encode(torrentObject);
 
-    // 计算修改后种子的 info_hash
-    const modifiedInfoBuffer = bencode.encode(torrentObject.info);
-    const modifiedInfoHash = crypto.createHash('sha1').update(modifiedInfoBuffer).digest('hex');
-
-    // 异步注册 info_hash 变体（如果不存在）
-    setImmediate(async () => {
-      try {
-        if (modifiedInfoHash !== torrent.info_hash) {
-          await InfoHashVariant.findOrCreate({
-            where: { variant_info_hash: modifiedInfoHash },
-            defaults: {
-              original_torrent_id: torrent.id,
-              variant_info_hash: modifiedInfoHash,
-              user_passkey: userPasskey,
-              announce_url: announceUrl
-            }
-          });
-          console.log(`📝 注册 info_hash 变体: ${modifiedInfoHash} -> 原始: ${torrent.info_hash}`);
-        }
-      } catch (variantError) {
-        console.error('注册 info_hash 变体失败:', variantError);
-      }
-    });
+    // info_hash 应该与原始种子完全相同
+    const infoBuffer = bencode.encode(torrentObject.info);
+    const infoHash = crypto.createHash('sha1').update(infoBuffer).digest('hex');
+    
+    // 验证 info_hash 是否与数据库中的一致
+    if (infoHash !== torrent.info_hash) {
+      console.warn(`⚠️  警告：计算的 info_hash (${infoHash}) 与数据库中的不匹配 (${torrent.info_hash})`);
+      console.warn(`   种子ID: ${torrent.id}, 名称: ${torrent.name}`);
+      console.warn(`   用户: ${req.user.username}, 这可能导致tracker问题`);
+    } else {
+      console.log(`✅ info_hash 验证通过: ${infoHash} (用户: ${req.user.username})`);
+    }
 
     // 设置下载响应头
     res.setHeader('Content-Type', 'application/x-bittorrent');
