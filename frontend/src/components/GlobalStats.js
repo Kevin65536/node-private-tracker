@@ -22,7 +22,7 @@ import {
   TrendingUp,
   Speed
 } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../services/api';
 
 const GlobalStats = () => {
   const [stats, setStats] = useState(null);
@@ -38,15 +38,42 @@ const GlobalStats = () => {
       setLoading(true);
       setError(null);
       
-      const token = localStorage.getItem('token');
-      const response = await axios.get('/api/stats/global', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      console.log('开始获取统计数据...');
       
-      setStats(response.data);
+      // 使用基础的stats API
+      const response = await api.get('/stats');
+      
+      console.log('统计API响应:', response.data);
+      
+      // 转换后端数据格式到前端期望的格式
+      const backendData = response.data;
+      const transformedStats = {
+        totalUsers: backendData.stats?.total_users || 0,
+        activeUsers: backendData.stats?.active_users || 0,
+        totalTorrents: backendData.stats?.total_torrents || 0,
+        approvedTorrents: backendData.stats?.approved_torrents || 0,
+        totalUploaded: backendData.traffic?.totalUploaded || 0,
+        totalDownloaded: backendData.traffic?.totalDownloaded || 0,
+        globalRatio: backendData.traffic?.totalDownloaded > 0 
+          ? backendData.traffic.totalUploaded / backendData.traffic.totalDownloaded 
+          : null,
+        avgRatio: 1.0, // 默认值，后续可以从后端计算
+        avgUploaded: backendData.stats?.total_users > 0 
+          ? (backendData.traffic?.totalUploaded || 0) / backendData.stats.total_users 
+          : 0,
+        avgDownloaded: backendData.stats?.total_users > 0 
+          ? (backendData.traffic?.totalDownloaded || 0) / backendData.stats.total_users 
+          : 0,
+        todayNewUsers: 0, // 暂时默认为0，后续可以从后端获取
+        todayNewTorrents: 0, // 暂时默认为0，后续可以从后端获取
+        lastUpdated: new Date().toISOString()
+      };
+      
+      console.log('转换后的统计数据:', transformedStats);
+      setStats(transformedStats);
     } catch (error) {
       console.error('获取全站统计失败:', error);
-      setError(error.response?.data?.message || '获取全站统计失败');
+      setError(error.response?.data?.error || error.message || '获取统计信息失败');
     } finally {
       setLoading(false);
     }

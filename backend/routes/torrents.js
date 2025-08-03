@@ -6,7 +6,7 @@ const bencode = require('bncode');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
-const { Torrent, User, Category, Download, UserStats, sequelize } = require('../models');
+const { Torrent, User, Category, Download, UserStats, InfoHashVariant, sequelize } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { getOrCreatePasskey, buildAnnounceUrl } = require('../utils/passkey');
 const { body, validationResult } = require('express-validator');
@@ -516,6 +516,30 @@ router.get('/:id/download', authenticateToken, async (req, res) => {
     
     // 重新编码种子文件
     const modifiedTorrentData = bencode.encode(torrentObject);
+
+    // 计算修改后种子的 info_hash
+    const modifiedInfoBuffer = bencode.encode(torrentObject.info);
+    const modifiedInfoHash = crypto.createHash('sha1').update(modifiedInfoBuffer).digest('hex');
+
+    // 异步注册 info_hash 变体（如果不存在）
+    setImmediate(async () => {
+      try {
+        if (modifiedInfoHash !== torrent.info_hash) {
+          await InfoHashVariant.findOrCreate({
+            where: { variant_info_hash: modifiedInfoHash },
+            defaults: {
+              original_torrent_id: torrent.id,
+              variant_info_hash: modifiedInfoHash,
+              user_passkey: userPasskey,
+              announce_url: announceUrl
+            }
+          });
+          console.log(`📝 注册 info_hash 变体: ${modifiedInfoHash} -> 原始: ${torrent.info_hash}`);
+        }
+      } catch (variantError) {
+        console.error('注册 info_hash 变体失败:', variantError);
+      }
+    });
 
     // 设置下载响应头
     res.setHeader('Content-Type', 'application/x-bittorrent');

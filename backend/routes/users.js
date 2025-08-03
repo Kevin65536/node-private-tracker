@@ -3,8 +3,57 @@ const { Op } = require('sequelize');
 const { User, UserStats, Torrent, Download } = require('../models');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
+const { getOrCreatePasskey, regeneratePasskey, buildAnnounceUrl } = require('../utils/passkey');
 
 const router = express.Router();
+
+// 获取用户 passkey
+router.get('/passkey', authenticateToken, async (req, res) => {
+  try {
+    const passkey = await getOrCreatePasskey(req.user.id);
+    const announceUrl = buildAnnounceUrl(passkey);
+    
+    res.json({
+      passkey,
+      announce_url: announceUrl,
+      usage_info: {
+        description: '在制作种子时使用此 Tracker URL',
+        instructions: [
+          '1. 在 qBittorrent 中选择"创建种子"',
+          '2. 在 "Tracker URL" 字段中填入上述地址',
+          '3. 勾选"私有种子"选项',
+          '4. 完成种子制作后上传到 PT 站'
+        ],
+        security_notice: '请勿将您的 passkey 分享给其他人'
+      }
+    });
+  } catch (error) {
+    console.error('获取 passkey 错误:', error);
+    res.status(500).json({
+      error: '获取 passkey 失败'
+    });
+  }
+});
+
+// 重新生成 passkey
+router.post('/passkey/regenerate', authenticateToken, async (req, res) => {
+  try {
+    const newPasskey = await regeneratePasskey(req.user.id);
+    const announceUrl = buildAnnounceUrl(newPasskey);
+    
+    res.json({
+      message: 'Passkey 重新生成成功',
+      passkey: newPasskey,
+      announce_url: announceUrl,
+      warning: '旧的 passkey 已失效，请更新您的种子客户端配置'
+    });
+  } catch (error) {
+    console.error('重新生成 passkey 错误:', error);
+    res.status(500).json({
+      error: '重新生成 passkey 失败'
+    });
+  }
+});
 
 // 获取当前用户信息
 router.get('/profile', authenticateToken, async (req, res) => {
@@ -113,9 +162,13 @@ router.put('/profile', authenticateToken, [
 // 获取用户统计信息
 router.get('/stats', authenticateToken, async (req, res) => {
   try {
+    // 获取用户统计数据
     const stats = await UserStats.findOne({
       where: { user_id: req.user.id }
     });
+
+    // 获取用户信息
+    const user = await User.findByPk(req.user.id);
 
     if (!stats) {
       return res.status(404).json({
@@ -139,9 +192,18 @@ router.get('/stats', authenticateToken, async (req, res) => {
     res.json({
       stats: {
         ...stats.toJSON(),
+        uploaded: parseFloat(stats.uploaded) || 0,
+        downloaded: parseFloat(stats.downloaded) || 0,
+        bonus_points: parseFloat(stats.bonus_points) || 0,
+        seedtime: parseInt(stats.seedtime) || 0,
+        leechtime: parseInt(stats.leechtime) || 0,
         uploaded_torrents: uploadedCount,
         active_downloads: activeDownloads,
-        ratio: stats.ratio
+        ratio: stats.ratio,
+        // 添加用户信息
+        user_level: user.role === 'admin' ? '管理员' : '普通用户',
+        registration_date: user.created_at || user.createdAt,
+        last_active: user.last_login || user.updated_at
       }
     });
 

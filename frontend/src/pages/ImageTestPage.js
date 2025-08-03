@@ -6,7 +6,7 @@ const ImageTestPage = () => {
   
   // 测试不同的图片URL构建方式
   const getServerBaseUrl = () => {
-    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+    const apiUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:3001/api`;
     return apiUrl.replace('/api', '');
   };
   

@@ -142,6 +142,10 @@ const Navbar = () => {
                   <AccountCircle sx={{ mr: 1 }} />
                   个人资料
                 </MenuItem>
+                <MenuItem onClick={() => { navigate('/settings'); handleMenuClose(); }}>
+                  <Settings sx={{ mr: 1 }} />
+                  用户设置
+                </MenuItem>
                 <MenuItem onClick={() => { navigate('/dashboard'); handleMenuClose(); }}>
                   <Dashboard sx={{ mr: 1 }} />
                   个人中心

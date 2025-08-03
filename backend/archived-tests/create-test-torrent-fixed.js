@@ -42,9 +42,9 @@ function createTestTorrent() {
 
   // 创建完整的torrent数据
   const torrentData = {
-    announce: 'http://localhost:3001/announce',
+    announce: 'http://172.21.222.169:3001/announce',
     'announce-list': [
-      ['http://localhost:3001/announce'],
+      ['http://172.21.222.169:3001/announce'],
       ['http://tracker.example.com/announce']
     ],
     comment: 'PT Site Test Torrent File',

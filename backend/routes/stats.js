@@ -15,6 +15,54 @@ const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
 
 /**
+ * 获取基础统计信息（用于健康检查和基本展示）
+ */
+router.get('/', async (req, res) => {
+  try {
+    // 基础用户统计
+    const [totalUsers, activeUsers] = await Promise.all([
+      User.count(),
+      User.count({ where: { status: 'active' } })
+    ]);
+
+    // 基础种子统计
+    const [totalTorrents, approvedTorrents] = await Promise.all([
+      Torrent.count(),
+      Torrent.count({ where: { status: 'approved' } })
+    ]);
+
+    // 基础流量统计
+    const trafficStats = await UserStats.findOne({
+      attributes: [
+        [Sequelize.fn('SUM', Sequelize.col('uploaded')), 'total_uploaded'],
+        [Sequelize.fn('SUM', Sequelize.col('downloaded')), 'total_downloaded']
+      ],
+      raw: true
+    });
+
+    const totalUploaded = parseFloat(trafficStats?.total_uploaded) || 0;
+    const totalDownloaded = parseFloat(trafficStats?.total_downloaded) || 0;
+
+    res.json({
+      stats: {
+        total_users: totalUsers,
+        active_users: activeUsers,
+        total_torrents: totalTorrents,
+        approved_torrents: approvedTorrents
+      },
+      traffic: {
+        totalUploaded: totalUploaded,
+        totalDownloaded: totalDownloaded
+      }
+    });
+
+  } catch (error) {
+    console.error('获取基础统计失败:', error);
+    res.status(500).json({ error: '获取统计信息失败' });
+  }
+});
+
+/**
  * 获取用户详细统计信息
  */
 router.get('/user/:userId', authenticateToken, async (req, res) => {
@@ -164,45 +212,58 @@ router.get('/leaderboard', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: '无效的排行榜类型' });
     }
 
-    let orderField = type;
-    let orderDirection = 'DESC';
-
-    // 特殊处理比率排行榜
-    if (type === 'ratio') {
-      orderField = [
-        Sequelize.literal(`CASE 
-          WHEN downloaded = 0 AND uploaded > 0 THEN 999999999 
-          WHEN downloaded = 0 THEN 1 
-          ELSE uploaded::float / downloaded::float 
-        END`)
-      ];
-    }
-
+    // 先获取所有活跃用户的统计数据
     const users = await User.findAll({
       where: { status: 'active' },
       attributes: ['id', 'username', 'role', 'created_at'],
       include: [{
         model: UserStats,
         as: 'UserStat',
-        attributes: ['uploaded', 'downloaded', 'bonus_points', 'seedtime', 'leechtime']
-      }],
-      order: [[
-        type === 'ratio' ? orderField : { model: UserStats, as: 'UserStat' },
-        type === 'ratio' ? orderDirection : orderField,
-        orderDirection
-      ]],
-      limit: limitNum
+        attributes: ['uploaded', 'downloaded', 'bonus_points', 'seedtime', 'leechtime'],
+        required: false // 允许没有统计数据的用户
+      }]
     });
 
-    // 计算排名和比率
-    const leaderboard = users.map((user, index) => {
+    // 在内存中计算排名和比率
+    const leaderboard = users.map(user => {
       const stats = user.UserStat || {};
-      const ratio = stats.downloaded > 0 
-        ? stats.uploaded / stats.downloaded 
-        : (stats.uploaded > 0 ? Infinity : 1);
+      const uploaded = parseFloat(stats.uploaded) || 0;
+      const downloaded = parseFloat(stats.downloaded) || 0;
+      const bonusPoints = parseFloat(stats.bonus_points) || 0;
+      const seedtime = parseInt(stats.seedtime) || 0;
+      const leechtime = parseInt(stats.leechtime) || 0;
+      
+      let ratio;
+      if (downloaded === 0 && uploaded > 0) {
+        ratio = Infinity;
+      } else if (downloaded === 0) {
+        ratio = 1;
+      } else {
+        ratio = uploaded / downloaded;
+      }
+
+      let sortValue;
+      switch (type) {
+        case 'uploaded':
+          sortValue = uploaded;
+          break;
+        case 'downloaded':
+          sortValue = downloaded;
+          break;
+        case 'ratio':
+          sortValue = ratio === Infinity ? 999999999 : ratio;
+          break;
+        case 'bonus_points':
+          sortValue = bonusPoints;
+          break;
+        case 'seedtime':
+          sortValue = seedtime;
+          break;
+        default:
+          sortValue = uploaded;
+      }
 
       return {
-        rank: index + 1,
         user: {
           id: user.id,
           username: user.username,
@@ -210,23 +271,37 @@ router.get('/leaderboard', authenticateToken, async (req, res) => {
           member_since: user.created_at
         },
         stats: {
-          uploaded: stats.uploaded || 0,
-          downloaded: stats.downloaded || 0,
+          uploaded: uploaded,
+          downloaded: downloaded,
           ratio: ratio,
-          bonus_points: stats.bonus_points || 0,
-          seedtime: stats.seedtime || 0,
-          leechtime: stats.leechtime || 0
-        }
+          bonus_points: bonusPoints,
+          seedtime: seedtime,
+          leechtime: leechtime
+        },
+        sortValue: sortValue
       };
     });
 
+    // 根据类型排序
+    leaderboard.sort((a, b) => b.sortValue - a.sortValue);
+
+    // 限制结果数量并添加排名
+    const finalLeaderboard = leaderboard.slice(0, limitNum).map((item, index) => ({
+      rank: index + 1,
+      user: item.user,
+      stats: item.stats
+    }));
+
     res.json({
       type,
-      leaderboard
+      leaderboard: finalLeaderboard
     });
 
   } catch (error) {
     console.error('获取排行榜失败:', error);
+    console.error('错误详情:', error.message);
+    console.error('SQL错误:', error.sql);
+    console.error('参数:', req.query);
     res.status(500).json({ error: '获取排行榜失败' });
   }
 });

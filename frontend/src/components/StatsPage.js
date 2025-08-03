@@ -4,16 +4,19 @@ import {
   Tabs,
   Tab,
   Container,
-  Paper
+  Paper,
+  Typography,
+  CircularProgress
 } from '@mui/material';
 import {
   Analytics,
   Leaderboard as LeaderboardIcon,
   Public
 } from '@mui/icons-material';
+import GlobalStats from './GlobalStats';
 import UserStats from './UserStats';
 import Leaderboard from './Leaderboard';
-import GlobalStats from './GlobalStats';
+import { useAuth } from '../contexts/AuthContext';
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -35,6 +38,7 @@ function TabPanel({ children, value, index, ...other }) {
 
 const StatsPage = () => {
   const [tabValue, setTabValue] = useState(0);
+  const { user, isAuthenticated } = useAuth();
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -69,7 +73,7 @@ const StatsPage = () => {
         </Box>
 
         <TabPanel value={tabValue} index={0}>
-          <UserStats />
+          <UserStats userId={user?.id} isCurrentUser={true} />
         </TabPanel>
         <TabPanel value={tabValue} index={1}>
           <Leaderboard />

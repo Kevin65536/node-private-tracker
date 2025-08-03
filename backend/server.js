@@ -32,8 +32,17 @@ app.use(helmet({
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? process.env.FRONTEND_URL 
-    : ['http://localhost:3000', 'http://127.0.0.1:3000'],
-  credentials: true
+    : [
+        'http://localhost:3000', 
+        'http://127.0.0.1:3000',
+        'http://172.21.222.169:3000',  // 明确添加内网IP
+        process.env.FRONTEND_URL,     // 从环境变量读取
+        /^http:\/\/172\.21\.\d+\.\d+:3000$/,  // 允许同网段的其他设备
+        /^http:\/\/192\.168\.\d+\.\d+:3000$/, // 支持常见内网段
+        /^http:\/\/10\.\d+\.\d+\.\d+:3000$/   // 支持10.x.x.x网段
+      ],
+  credentials: true,
+  optionsSuccessStatus: 200 // 支持旧版本浏览器
 }));
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
@@ -189,7 +198,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/stats', statsRoutes);
 
 // Tracker 路由 (放在最后，避免拦截其他路由)
-app.use('/', trackerRoutes);
+app.use('/tracker', trackerRoutes);
 
 // 404处理
 app.use((req, res) => {
@@ -203,6 +212,9 @@ app.use((req, res) => {
 // 错误处理中间件
 app.use((err, req, res, next) => {
   console.error('服务器错误:', err.stack);
+  console.error('请求来源:', req.headers.origin);
+  console.error('请求方法:', req.method);
+  console.error('请求路径:', req.path);
   
   // Sequelize错误处理
   if (err.name === 'SequelizeValidationError') {
@@ -247,14 +259,15 @@ async function startServer() {
     }
     
     // 启动服务器
-    app.listen(PORT, () => {
-      console.log(`🚀 PT站服务器运行在 http://localhost:${PORT}`);
-      console.log(`📡 Tracker服务: http://localhost:${PORT}/announce`);
-      console.log(`🔧 API端点: http://localhost:${PORT}/api`);
-      console.log(`📊 统计信息: http://localhost:${PORT}/api/stats`);
-      console.log(`💊 健康检查: http://localhost:${PORT}/api/health`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 PT站服务器启动成功`);
+      console.log(`📡 Tracker服务已启用`);
+      console.log(`🔧 API服务已启动`);
+      console.log(`📊 统计服务已启用`);
+      console.log(`💊 健康检查可用`);
       console.log(`🗄️  数据库: ${sequelize.getDatabaseName()} (${sequelize.getDialect()})`);
       console.log(`🌍 环境: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🌐 服务端口: ${PORT}`);
       
       // 启动统计调度器
       if (process.env.NODE_ENV !== 'test') {

@@ -1,5 +1,5 @@
 const bencode = require('bncode');
-const { Peer, Torrent, AnnounceLog, UserStats } = require('../models');
+const { Peer, Torrent, AnnounceLog, UserStats, InfoHashVariant } = require('../models');
 const { validatePasskey } = require('../utils/passkey');
 
 /**
@@ -158,14 +158,85 @@ async function handleAnnounce(req, res) {
     }
 
     // 转换 info_hash 为十六进制
-    const infoHashHex = Buffer.from(info_hash, 'binary').toString('hex');
+    // BitTorrent 客户端发送的 info_hash 是 URL 编码的二进制数据
+    // 我们需要绕过 Express 的自动解码，从原始 URL 中提取
+    let infoHashHex;
+    try {
+      console.log('🔍 Info Hash 调试信息:');
+      console.log(`   Express解析后: ${JSON.stringify(info_hash)}`);
+      console.log(`   长度: ${info_hash.length}`);
+      
+      // 从原始 URL 中提取 info_hash (绕过 Express 的解码)
+      const originalUrl = req.originalUrl || req.url;
+      const infoHashMatch = originalUrl.match(/[?&]info_hash=([^&]*)/);
+      
+      let rawInfoHash = info_hash; // 默认使用 Express 解析的值
+      
+      if (infoHashMatch) {
+        const urlEncodedHash = infoHashMatch[1];
+        console.log(`   原始URL编码: ${urlEncodedHash}`);
+        
+        // 手动解码 URL 编码的二进制数据
+        try {
+          // 方法1: 标准 decodeURIComponent (适用于大多数情况)
+          rawInfoHash = decodeURIComponent(urlEncodedHash);
+          console.log(`   标准解码成功: ${rawInfoHash.length} 字节`);
+        } catch (standardError) {
+          // 方法2: 手动字节解码 (处理特殊情况)
+          console.log(`   标准解码失败，使用手动解码`);
+          rawInfoHash = urlEncodedHash.replace(/%([0-9A-Fa-f]{2})/g, (match, hex) => {
+            return String.fromCharCode(parseInt(hex, 16));
+          });
+        }
+      }
+      
+      // 转换为十六进制
+      infoHashHex = Buffer.from(rawInfoHash, 'latin1').toString('hex');
+      console.log(`   最终十六进制: ${infoHashHex}`);
+      
+      // 验证info_hash长度 (应该是40个字符的hex字符串，对应20字节)
+      if (infoHashHex.length !== 40) {
+        console.log(`⚠️  Info hash 长度不正确: ${infoHashHex.length}, expected 40`);
+        console.log(`   原始二进制数据长度: ${rawInfoHash.length}`);
+        
+        // 如果长度不对，尝试截取前20字节
+        if (rawInfoHash.length >= 20) {
+          const truncated = rawInfoHash.substring(0, 20);
+          infoHashHex = Buffer.from(truncated, 'latin1').toString('hex');
+          console.log(`   截取后十六进制: ${infoHashHex}`);
+        }
+      }
+    } catch (error) {
+      console.error('Info hash 解码错误:', error);
+      return sendFailureResponse(res, 'Invalid info_hash format');
+    }
 
-    // 查找种子
-    const torrent = await Torrent.findOne({
+    // 查找种子 - 首先尝试直接匹配，然后通过映射表查找
+    let torrent = await Torrent.findOne({
       where: { info_hash: infoHashHex }
     });
 
+    let isVariant = false;
     if (!torrent) {
+      // 直接匹配失败，尝试通过映射表查找
+      const variant = await InfoHashVariant.findOne({
+        where: { variant_info_hash: infoHashHex },
+        include: [{
+          model: Torrent,
+          as: 'originalTorrent',
+          where: { status: 'approved' }
+        }]
+      });
+
+      if (variant) {
+        torrent = variant.originalTorrent;
+        isVariant = true;
+        console.log(`📍 通过映射表找到种子: ${variant.variant_info_hash} -> ${torrent.info_hash}`);
+      }
+    }
+
+    if (!torrent) {
+      console.log(`❌ 种子未找到: ${infoHashHex}`);
       return sendFailureResponse(res, 'Torrent not found');
     }
 
@@ -394,7 +465,19 @@ async function handleScrape(req, res) {
     const files = {};
 
     for (const hash of infoHashes) {
-      const infoHashHex = Buffer.from(hash, 'binary').toString('hex');
+      let infoHashHex;
+      try {
+        // 处理URL编码的info_hash
+        let decodedHash = hash;
+        if (hash.includes('%')) {
+          decodedHash = decodeURIComponent(hash);
+        }
+        infoHashHex = Buffer.from(decodedHash, 'latin1').toString('hex');
+      } catch (error) {
+        console.error('Scrape info_hash 解码错误:', error);
+        continue; // 跳过无效的hash
+      }
+      
       const stats = peerManager.getTorrentStats(infoHashHex);
       
       files[hash] = {

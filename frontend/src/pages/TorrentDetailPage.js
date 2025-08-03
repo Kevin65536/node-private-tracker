@@ -119,7 +119,7 @@ const TorrentImage = React.memo(({ imageFile, index, onClick }) => {
   
   // 获取服务器基础URL（不包含/api路径）
   const getServerBaseUrl = () => {
-    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+    const apiUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:3001/api`;
     return apiUrl.replace('/api', '');
   };
   

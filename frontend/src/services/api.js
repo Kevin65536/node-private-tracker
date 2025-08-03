@@ -1,6 +1,28 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+// 动态确定API地址
+function getApiBaseUrl() {
+  // 优先使用环境变量
+  if (process.env.REACT_APP_API_URL) {
+    console.log('使用环境变量API URL:', process.env.REACT_APP_API_URL);
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // 在开发环境下，根据当前URL动态确定后端地址
+  const hostname = window.location.hostname;
+  console.log('当前访问的hostname:', hostname);
+  
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:3001/api';
+  } else {
+    // 使用当前访问的IP地址访问后端
+    const dynamicUrl = `http://${hostname}:3001/api`;
+    console.log('动态构建的API URL:', dynamicUrl);
+    return dynamicUrl;
+  }
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 // 创建axios实例
 const api = axios.create({
@@ -15,6 +37,7 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log('发送API请求:', config.method?.toUpperCase(), config.url, '完整URL:', API_BASE_URL + config.url);
     return config;
   },
   (error) => {
@@ -60,6 +83,12 @@ export const userAPI = {
   
   // 获取用户统计
   getStats: () => api.get('/users/stats'),
+  
+  // 获取用户passkey
+  getPasskey: () => api.get('/users/passkey'),
+  
+  // 重新生成passkey
+  regeneratePasskey: () => api.post('/users/passkey/regenerate'),
   
   // 获取用户列表（管理员）
   getUsers: (params) => api.get('/users', { params }),

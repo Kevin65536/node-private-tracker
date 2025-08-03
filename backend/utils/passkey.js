@@ -60,6 +60,7 @@ async function validatePasskey(passkey) {
     });
 
     return {
+      id: userPasskey.User.id,
       user_id: userPasskey.User.id,
       username: userPasskey.User.username,
       role: userPasskey.User.role,
@@ -101,7 +102,7 @@ async function regeneratePasskey(userId) {
  */
 function buildAnnounceUrl(passkey, infoHash = null) {
   const baseUrl = process.env.ANNOUNCE_URL || 'http://localhost:3001';
-  return `${baseUrl}/announce/${passkey}`;
+  return `${baseUrl}/tracker/announce/${passkey}`;
 }
 
 module.exports = {
