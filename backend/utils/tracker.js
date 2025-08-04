@@ -67,8 +67,9 @@ class PeerManager {
    */
   getTorrentStats(infoHash) {
     const peers = this.getPeers(infoHash);
-    const seeders = peers.filter(p => p.left === 0).length;
-    const leechers = peers.filter(p => p.left > 0).length;
+    // 修复数据类型问题 - left字段可能是string类型
+    const seeders = peers.filter(p => Number(p.left) === 0).length;
+    const leechers = peers.filter(p => Number(p.left) > 0).length;
     
     return {
       complete: seeders,
