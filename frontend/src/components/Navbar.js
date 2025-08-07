@@ -15,13 +15,13 @@ import {
 import {
   AccountCircle,
   ExitToApp,
-  Dashboard,
   CloudUpload,
   Settings,
   Menu as MenuIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getApiBaseUrl } from '../utils/networkConfig';
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -58,6 +58,15 @@ const Navbar = () => {
       default:
         return '用户';
     }
+  };
+
+  // 获取头像URL
+  const getAvatarUrl = (avatar) => {
+    if (!avatar) return null;
+    
+    const apiBaseUrl = getApiBaseUrl();
+    const serverBaseUrl = apiBaseUrl.replace('/api', '');
+    return `${serverBaseUrl}/uploads/avatars/${avatar}?t=${Date.now()}`;
   };
 
   return (
@@ -112,8 +121,17 @@ const Navbar = () => {
                   onClick={handleMenuOpen}
                   color="inherit"
                 >
-                  <Avatar sx={{ width: 32, height: 32 }}>
-                    {user?.username?.charAt(0).toUpperCase()}
+                  <Avatar 
+                    sx={{ width: 32, height: 32 }}
+                    src={user?.avatar ? getAvatarUrl(user.avatar) : undefined}
+                    imgProps={{
+                      crossOrigin: 'anonymous',
+                      onError: (e) => {
+                        console.error('导航栏头像加载失败:', e.target.src);
+                      }
+                    }}
+                  >
+                    {!user?.avatar && user?.username?.charAt(0).toUpperCase()}
                   </Avatar>
                 </IconButton>
               </Box>
@@ -145,10 +163,6 @@ const Navbar = () => {
                 <MenuItem onClick={() => { navigate('/settings'); handleMenuClose(); }}>
                   <Settings sx={{ mr: 1 }} />
                   用户设置
-                </MenuItem>
-                <MenuItem onClick={() => { navigate('/dashboard'); handleMenuClose(); }}>
-                  <Dashboard sx={{ mr: 1 }} />
-                  个人中心
                 </MenuItem>
                 {(user?.role === 'admin' || user?.role === 'moderator') && (
                   <MenuItem onClick={() => { navigate('/admin'); handleMenuClose(); }}>

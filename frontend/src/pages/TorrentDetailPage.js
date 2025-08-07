@@ -128,49 +128,16 @@ const TorrentImage = React.memo(({ imageFile, index, onClick }) => {
   
   const handleImageLoad = useCallback(() => {
     setImageLoading(false);
-    console.log('图片加载成功:', imageUrl);
   }, [imageUrl]);
   
   const handleImageError = useCallback((e) => {
     setImageLoading(false);
     setImageError(true);
-    console.error('图片加载失败:', imageUrl, e);
-    console.error('错误详情:', e.target.naturalWidth, e.target.naturalHeight);
-    
-    // 尝试直接访问图片URL进行调试
-    fetch(imageUrl)
-      .then(response => {
-        console.log('图片URL测试结果:', {
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers,
-          url: response.url
-        });
-        return response.blob();
-      })
-      .then(blob => {
-        console.log('图片数据:', {
-          size: blob.size,
-          type: blob.type
-        });
-      })
-      .catch(error => {
-        console.error('图片URL fetch失败:', error);
-      });
   }, [imageUrl]);
   
   // 组件加载时就开始测试URL
   useEffect(() => {
-    console.log('TorrentImage组件加载, URL:', imageUrl);
-    
-    // 立即测试URL可访问性
-    fetch(imageUrl, { mode: 'no-cors' })
-      .then(() => {
-        console.log('no-cors模式下URL可访问:', imageUrl);
-      })
-      .catch(error => {
-        console.error('no-cors模式下URL访问失败:', error);
-      });
+    // URL可访问性测试已移除
   }, [imageUrl]);
   
   return (

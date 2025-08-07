@@ -379,20 +379,25 @@ const TorrentsPage = () => {
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <Box sx={{ display: 'flex', gap: 1, mb: 0.5 }}>
                         <Chip
-                          label={`↑${torrent.seeders}`}
+                          label={`↑${torrent.real_time_stats?.seeders || torrent.seeders || 0}`}
                           size="small"
-                          color={getSeedLeechColor(torrent.seeders, torrent.leechers)}
+                          color={getSeedLeechColor(
+                            torrent.real_time_stats?.seeders || torrent.seeders || 0, 
+                            torrent.real_time_stats?.leechers || torrent.leechers || 0
+                          )}
                           variant="filled"
+                          title="当前做种量"
                         />
                         <Chip
-                          label={`↓${torrent.leechers}`}
+                          label={`↓${torrent.real_time_stats?.leechers || torrent.leechers || 0}`}
                           size="small"
                           color="default"
                           variant="outlined"
+                          title="当前下载量"
                         />
                       </Box>
                       <Typography variant="caption" color="text.secondary">
-                        完成: {torrent.completed}
+                        完成: {torrent.real_time_stats?.completed || torrent.completed || 0}
                       </Typography>
                     </Box>
                   </TableCell>

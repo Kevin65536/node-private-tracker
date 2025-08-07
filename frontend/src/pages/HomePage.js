@@ -186,18 +186,21 @@ const HomePage = () => {
                               </Typography>
                               <Box sx={{ mt: 1 }}>
                                 <Chip 
-                                  label={`🟢 ${torrent.seeders}`} 
+                                  label={`🟢 ${torrent.real_time_stats?.seeders || torrent.seeders || 0}`} 
                                   size="small" 
                                   sx={{ mr: 1 }} 
+                                  title="当前做种量"
                                 />
                                 <Chip 
-                                  label={`🔴 ${torrent.leechers}`} 
+                                  label={`🔴 ${torrent.real_time_stats?.leechers || torrent.leechers || 0}`} 
                                   size="small" 
                                   sx={{ mr: 1 }} 
+                                  title="当前下载量"
                                 />
                                 <Chip 
-                                  label={`✅ ${torrent.completed}`} 
-                                  size="small" 
+                                  label={`✅ ${torrent.real_time_stats?.completed || torrent.completed || 0}`} 
+                                  size="small"
+                                  title="总完成量"
                                 />
                               </Box>
                             </Box>

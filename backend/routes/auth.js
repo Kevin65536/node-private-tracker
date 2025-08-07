@@ -92,7 +92,7 @@ router.post('/register', registerValidation, async (req, res) => {
       user_id: user.id,
       uploaded: 0,
       downloaded: 0,
-      bonus_points: 50.00, // 默认注册积分
+      bonus_points: 100.00, // 提高默认注册积分到100
       invitations: 0
     });
 

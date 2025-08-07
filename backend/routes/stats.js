@@ -215,7 +215,7 @@ router.get('/leaderboard', authenticateToken, async (req, res) => {
     // 先获取所有活跃用户的统计数据
     const users = await User.findAll({
       where: { status: 'active' },
-      attributes: ['id', 'username', 'role', 'created_at'],
+      attributes: ['id', 'username', 'role', 'avatar', 'created_at'],
       include: [{
         model: UserStats,
         as: 'UserStat',
@@ -268,6 +268,7 @@ router.get('/leaderboard', authenticateToken, async (req, res) => {
           id: user.id,
           username: user.username,
           role: user.role,
+          avatar: user.avatar,
           member_since: user.created_at
         },
         stats: {

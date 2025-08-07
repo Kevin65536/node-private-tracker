@@ -6,7 +6,7 @@ const bencode = require('bncode');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
-const { Torrent, User, Category, Download, UserStats, InfoHashVariant, sequelize } = require('../models');
+const { Torrent, User, Category, Download, UserStats, InfoHashVariant, AnnounceLog, sequelize } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { getOrCreatePasskey, buildAnnounceUrl } = require('../utils/passkey');
 const { body, validationResult } = require('express-validator');
@@ -171,8 +171,64 @@ router.get('/', async (req, res) => {
       ]
     });
 
+    // 为每个种子添加实时统计信息
+    const torrentsWithStats = await Promise.all(
+      torrents.map(async (torrent) => {
+        const torrentData = torrent.toJSON();
+        
+        try {
+          // 获取实时tracker统计
+          if (torrent.info_hash) {
+            const trackerStats = peerManager.getTorrentStats(torrent.info_hash);
+            
+            // 获取完成下载的总数 (从AnnounceLog表统计completed事件)
+            const completedCount = await AnnounceLog.count({
+              where: { 
+                torrent_id: torrent.id,
+                event: 'completed'
+              },
+              distinct: true,
+              col: 'user_id' // 按用户去重，避免同一用户多次完成被重复计算
+            });
+            
+            // 添加实时统计信息
+            torrentData.real_time_stats = {
+              seeders: trackerStats.complete || 0,
+              leechers: trackerStats.incomplete || 0,
+              completed: completedCount,
+              last_updated: new Date()
+            };
+            
+            // 保持向后兼容
+            torrentData.seeders = trackerStats.complete || 0;
+            torrentData.leechers = trackerStats.incomplete || 0;
+            torrentData.completed = completedCount;
+          } else {
+            // 如果没有info_hash，使用数据库中的静态值
+            torrentData.real_time_stats = {
+              seeders: torrent.seeders || 0,
+              leechers: torrent.leechers || 0,
+              completed: torrent.completed || 0,
+              last_updated: new Date()
+            };
+          }
+        } catch (error) {
+          console.error(`获取种子 ${torrent.id} 实时统计失败:`, error);
+          // 使用数据库中的静态值作为后备
+          torrentData.real_time_stats = {
+            seeders: torrent.seeders || 0,
+            leechers: torrent.leechers || 0,
+            completed: torrent.completed || 0,
+            last_updated: new Date()
+          };
+        }
+        
+        return torrentData;
+      })
+    );
+
     res.json({
-      torrents,
+      torrents: torrentsWithStats,
       pagination: {
         current_page: page,
         total_pages: Math.ceil(count / limit),

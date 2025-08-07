@@ -1,4 +1,7 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const { Op } = require('sequelize');
 const { User, UserStats, Torrent, Download } = require('../models');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
@@ -6,6 +9,43 @@ const { body, validationResult } = require('express-validator');
 const { getOrCreatePasskey, regeneratePasskey, buildAnnounceUrl } = require('../utils/passkey');
 
 const router = express.Router();
+
+// 确保头像上传目录存在
+const avatarUploadDir = path.join(__dirname, '../uploads/avatars');
+if (!fs.existsSync(avatarUploadDir)) {
+  fs.mkdirSync(avatarUploadDir, { recursive: true });
+}
+
+// 头像上传配置
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, avatarUploadDir);
+  },
+  filename: (req, file, cb) => {
+    // 生成唯一文件名：用户ID + 时间戳 + 原始扩展名
+    const ext = path.extname(file.originalname).toLowerCase();
+    const filename = `avatar-${req.user.id}-${Date.now()}${ext}`;
+    cb(null, filename);
+  }
+});
+
+// 头像文件过滤器
+const avatarFileFilter = (req, file, cb) => {
+  // 只允许图片文件
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('只允许上传图片文件'), false);
+  }
+};
+
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB 限制
+  },
+  fileFilter: avatarFileFilter
+});
 
 // 获取用户 passkey
 router.get('/passkey', authenticateToken, async (req, res) => {
@@ -155,6 +195,106 @@ router.put('/profile', authenticateToken, [
     console.error('更新用户资料错误:', error);
     res.status(500).json({
       error: '更新资料失败'
+    });
+  }
+});
+
+// 上传用户头像
+router.post('/avatar', authenticateToken, avatarUpload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        error: '请选择要上传的头像文件'
+      });
+    }
+
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        error: '用户不存在'
+      });
+    }
+
+    // 删除旧头像文件（如果存在）
+    if (user.avatar) {
+      const oldAvatarPath = path.join(avatarUploadDir, path.basename(user.avatar));
+      if (fs.existsSync(oldAvatarPath)) {
+        try {
+          fs.unlinkSync(oldAvatarPath);
+        } catch (error) {
+          console.warn('删除旧头像文件失败:', error);
+        }
+      }
+    }
+
+    // 更新用户头像路径
+    const avatarFileName = req.file.filename;
+    await user.update({
+      avatar: avatarFileName
+    });
+
+    res.json({
+      message: '头像上传成功',
+      avatar: avatarFileName,
+      avatar_url: `/uploads/avatars/${avatarFileName}`
+    });
+
+  } catch (error) {
+    console.error('上传头像错误:', error);
+    
+    // 如果上传过程中出错，删除已上传的文件
+    if (req.file) {
+      const filePath = req.file.path;
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (deleteError) {
+          console.warn('删除上传失败的文件出错:', deleteError);
+        }
+      }
+    }
+    
+    res.status(500).json({
+      error: '头像上传失败'
+    });
+  }
+});
+
+// 删除用户头像
+router.delete('/avatar', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        error: '用户不存在'
+      });
+    }
+
+    // 删除头像文件（如果存在）
+    if (user.avatar) {
+      const avatarPath = path.join(avatarUploadDir, path.basename(user.avatar));
+      if (fs.existsSync(avatarPath)) {
+        try {
+          fs.unlinkSync(avatarPath);
+        } catch (error) {
+          console.warn('删除头像文件失败:', error);
+        }
+      }
+    }
+
+    // 清除数据库中的头像记录
+    await user.update({
+      avatar: null
+    });
+
+    res.json({
+      message: '头像删除成功'
+    });
+
+  } catch (error) {
+    console.error('删除头像错误:', error);
+    res.status(500).json({
+      error: '删除头像失败'
     });
   }
 });

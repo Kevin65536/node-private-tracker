@@ -458,12 +458,20 @@ async function updateUserStats(userId, uploadedDiff, downloadedDiff) {
         downloaded: downloadedDiff
       });
 
-      // 根据上传下载量计算奖励积分
-      const bonusPoints = calculateBonusPoints(uploadedDiff, downloadedDiff);
-      if (bonusPoints > 0) {
-        await userStats.increment({
-          bonus_points: bonusPoints
+      // 根据上传下载量计算积分变化
+      const bonusPointsChange = calculateBonusPoints(uploadedDiff, downloadedDiff);
+      
+      if (bonusPointsChange !== 0) {
+        // 获取当前积分值
+        const currentBonusPoints = parseFloat(userStats.bonus_points) || 0;
+        const newBonusPoints = Math.max(0, currentBonusPoints + bonusPointsChange);
+        
+        // 更新积分，确保不低于0
+        await userStats.update({
+          bonus_points: newBonusPoints
         });
+        
+        console.log(`用户${userId}积分变化: ${bonusPointsChange > 0 ? '+' : ''}${bonusPointsChange} (${currentBonusPoints} → ${newBonusPoints})`);
       }
     }
   } catch (error) {
@@ -475,9 +483,22 @@ async function updateUserStats(userId, uploadedDiff, downloadedDiff) {
  * 计算奖励积分
  */
 function calculateBonusPoints(uploadedDiff, downloadedDiff) {
-  // 基础规则：每上传1GB获得1积分，下载不扣分
+  // PT站积分策略：
+  // - 每上传1GB获得1积分（鼓励分享）
+  // - 每下载1GB扣除0.5积分（控制下载但不过于严苛）
+  // - 使用更精确的计算，避免小量传输被忽略
+  
   const uploadGBs = uploadedDiff / (1024 * 1024 * 1024);
-  return Math.floor(uploadGBs * 1);
+  const downloadGBs = downloadedDiff / (1024 * 1024 * 1024);
+  
+  // 使用更精确的计算，保留小数点后2位，然后四舍五入
+  const uploadBonus = Math.round(uploadGBs * 1 * 100) / 100;
+  const downloadPenalty = Math.round(downloadGBs * 0.5 * 100) / 100;
+  
+  const totalChange = uploadBonus - downloadPenalty;
+  
+  // 最终结果四舍五入到小数点后2位
+  return Math.round(totalChange * 100) / 100;
 }
 
 /**
