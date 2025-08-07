@@ -1,6 +1,7 @@
 const express = require('express');
-const { Torrent, User, Category } = require('../models');
+const { Torrent, User, Category, Peer, AnnounceLog, UserStats } = require('../models');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { Op } = require('sequelize');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -360,6 +361,164 @@ router.post('/torrents/batch-delete', authenticateToken, requireAdmin, async (re
     res.status(500).json({
       error: '批量删除操作失败'
     });
+  }
+});
+
+// Peer监控相关API
+// 获取peer统计信息
+router.get('/peers/stats', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    // 获取peer统计按info_hash分组
+    const stats = await Peer.findAll({
+      attributes: [
+        'info_hash',
+        [Peer.sequelize.fn('COUNT', Peer.sequelize.col('Peer.id')), 'total_peers'],
+        [Peer.sequelize.fn('COUNT', Peer.sequelize.literal('CASE WHEN "Peer"."left" = \'0\' THEN 1 END')), 'total_seeders'],
+        [Peer.sequelize.fn('COUNT', Peer.sequelize.literal('CASE WHEN "Peer"."left" != \'0\' THEN 1 END')), 'total_leechers']
+      ],
+      group: ['info_hash'],
+      raw: true
+    });
+
+    // 获取种子信息
+    const torrentsWithInfoHash = await Torrent.findAll({
+      attributes: ['id', 'name', 'size', 'info_hash']
+    });
+
+    // 创建info_hash到torrent的映射
+    const infoHashToTorrent = {};
+    torrentsWithInfoHash.forEach(torrent => {
+      if (torrent.info_hash) {
+        infoHashToTorrent[torrent.info_hash] = {
+          id: torrent.id,
+          name: torrent.name,
+          size: torrent.size
+        };
+      }
+    });
+
+    const totalStats = {
+      total_torrents: stats.length,
+      total_peers: stats.reduce((sum, stat) => sum + parseInt(stat.total_peers || 0), 0),
+      total_seeders: stats.reduce((sum, stat) => sum + parseInt(stat.total_seeders || 0), 0),
+      total_leechers: stats.reduce((sum, stat) => sum + parseInt(stat.total_leechers || 0), 0)
+    };
+
+    res.json({
+      summary: totalStats,
+      torrents: stats.map(stat => ({
+        info_hash: stat.info_hash,
+        torrent: infoHashToTorrent[stat.info_hash] || null,
+        peer_count: parseInt(stat.total_peers || 0),
+        seeders: parseInt(stat.total_seeders || 0),
+        leechers: parseInt(stat.total_leechers || 0)
+      }))
+    });
+  } catch (error) {
+    console.error('获取peer统计失败:', error);
+    res.status(500).json({ error: '获取peer统计失败' });
+  }
+});
+
+// 获取活跃peer列表
+router.get('/peers/active', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 50 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const peers = await Peer.findAll({
+      limit: parseInt(limit),
+      offset,
+      order: [['updated_at', 'DESC']],
+      include: [
+        {
+          model: User,
+          attributes: ['id', 'username', 'role']
+        },
+        {
+          model: Torrent,
+          attributes: ['id', 'name', 'size']
+        }
+      ]
+    });
+
+    const total = await Peer.count();
+
+    res.json({
+      peers: peers.map(peer => ({
+        id: peer.id,
+        user: peer.User,
+        torrent: peer.Torrent,
+        ip: peer.ip,
+        port: peer.port,
+        uploaded: peer.uploaded,
+        downloaded: peer.downloaded,
+        left: peer.left,
+        is_seeder: peer.left === '0',
+        last_announce: peer.updated_at
+      })),
+      pagination: {
+        current_page: parseInt(page),
+        total_pages: Math.ceil(total / limit),
+        total_items: total,
+        items_per_page: parseInt(limit)
+      }
+    });
+  } catch (error) {
+    console.error('获取活跃peer失败:', error);
+    res.status(500).json({ error: '获取活跃peer失败' });
+  }
+});
+
+// 获取最近的announce记录
+router.get('/announces/recent', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 100 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const { count, rows: announces } = await AnnounceLog.findAndCountAll({
+      limit: parseInt(limit),
+      offset,
+      order: [['announced_at', 'DESC']],
+      include: [
+        {
+          model: User,
+          attributes: ['id', 'username', 'role'],
+          required: false
+        },
+        {
+          model: Torrent,
+          attributes: ['id', 'name'],
+          required: false
+        }
+      ]
+    });
+
+    res.json({
+      announces: announces.map(announce => ({
+        id: announce.id,
+        user: announce.User,
+        torrent: announce.Torrent,
+        event: announce.event,
+        uploaded: announce.uploaded,
+        downloaded: announce.downloaded,
+        left: announce.left,
+        ip: announce.ip,
+        port: announce.port,
+        user_agent: announce.user_agent,
+        response_time: announce.response_time,
+        timestamp: announce.announced_at
+      })),
+      pagination: {
+        current_page: parseInt(page),
+        total_pages: Math.ceil(count / limit),
+        total_items: count,
+        items_per_page: parseInt(limit)
+      }
+    });
+  } catch (error) {
+    console.error('获取announce记录失败:', error);
+    res.status(500).json({ error: '获取announce记录失败' });
   }
 });
 

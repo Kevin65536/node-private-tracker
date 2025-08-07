@@ -25,11 +25,13 @@ import {
   CloudUpload,
   Download,
   Category,
+  NetworkCheck,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import UserManagement from '../components/UserManagement';
 import TorrentManagement from '../components/TorrentManagement';
+import PeerMonitoring from '../components/PeerMonitoring';
 import api from '../services/api';
 import { formatNumber } from '../utils/formatters';
 
@@ -96,7 +98,7 @@ const AdminPage = () => {
       { id: 'overview', label: '概览', icon: <BarChart /> },
       { id: 'torrent-review', label: '种子管理', icon: <Reviews /> },
       { id: 'user-management', label: '用户管理', icon: <People /> },
-      { id: 'category-management', label: '分类管理', icon: <Category /> },
+      { id: 'peer-monitoring', label: 'Peer监控', icon: <NetworkCheck /> },
       { id: 'system-settings', label: '系统设置', icon: <Settings /> },
       { id: 'security', label: '安全管理', icon: <Security /> },
     ];
@@ -254,17 +256,10 @@ const AdminPage = () => {
             <UserManagement />
           </Box>
         );
-      case 'category-management':
+      case 'peer-monitoring':
         return (
           <Box>
-            <Typography variant="h5" sx={{ mb: 3 }}>
-              分类管理
-            </Typography>
-            <Paper sx={{ p: 3, textAlign: 'center' }}>
-              <Typography variant="body1">
-                分类管理功能正在开发中...
-              </Typography>
-            </Paper>
+            <PeerMonitoring />
           </Box>
         );
       case 'system-settings':

@@ -22,6 +22,48 @@ const statsRoutes = require('./routes/stats');
 // 导入统计调度器
 const statsScheduler = require('./utils/statsScheduler');
 
+// 导入PeerManager恢复功能
+async function restorePeerManagerFromDatabase() {
+  try {
+    const { Peer } = require('./models');
+    const { Op } = require('sequelize');
+    const { peerManager } = require('./utils/tracker');
+    
+    console.log('🔄 正在从数据库恢复PeerManager状态...');
+    
+    // 获取所有活跃的peer (最近30分钟内有announce)
+    const activePeers = await Peer.findAll({
+      where: {
+        last_announce: {
+          [Op.gte]: new Date(Date.now() - 30 * 60 * 1000)
+        }
+      }
+    });
+
+    let restoredCount = 0;
+    for (const peer of activePeers) {
+      try {
+        peerManager.addPeer(peer.info_hash, {
+          user_id: peer.user_id,
+          peer_id: peer.peer_id,
+          ip: peer.ip,
+          port: peer.port,
+          uploaded: parseInt(peer.uploaded),
+          downloaded: parseInt(peer.downloaded),
+          left: parseInt(peer.left)
+        });
+        restoredCount++;
+      } catch (error) {
+        console.error(`恢复peer失败: ${error.message}`);
+      }
+    }
+    
+    console.log(`✅ 已恢复 ${restoredCount}/${activePeers.length} 个活跃peer到内存`);
+  } catch (error) {
+    console.error('❌ PeerManager恢复失败:', error);
+  }
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -277,10 +319,16 @@ async function startServer() {
       
       // 初始化用户 passkey
       await initializeUserPasskeys();
+      
+      // 恢复PeerManager状态
+      await restorePeerManagerFromDatabase();
     } else {
       // 生产环境使用更安全的同步
       await sequelize.sync({ alter: false });
       console.log('✅ 数据库同步完成');
+      
+      // 恢复PeerManager状态
+      await restorePeerManagerFromDatabase();
     }
     
     // 启动服务器

@@ -14,6 +14,42 @@ export const formatFileSize = (bytes) => {
 };
 
 /**
+ * 格式化字节大小（别名）
+ * @param {number|string} bytes - 字节数
+ * @returns {string} - 格式化后的字符串
+ */
+export const formatBytes = (bytes) => {
+  const numBytes = parseInt(bytes) || 0;
+  if (numBytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const i = Math.floor(Math.log(numBytes) / Math.log(k));
+  return parseFloat((numBytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+/**
+ * 格式化时间长度
+ * @param {number} seconds - 秒数
+ * @returns {string} - 格式化后的时间字符串
+ */
+export const formatDuration = (seconds) => {
+  if (!seconds || seconds === 0) return '0秒';
+  
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  const parts = [];
+  if (days > 0) parts.push(`${days}天`);
+  if (hours > 0) parts.push(`${hours}小时`);
+  if (minutes > 0) parts.push(`${minutes}分钟`);
+  if (secs > 0 || parts.length === 0) parts.push(`${secs}秒`);
+  
+  return parts.join(' ');
+};
+
+/**
  * 格式化日期
  * @param {string|Date} dateString - 日期字符串或日期对象
  * @returns {string} - 格式化后的日期字符串

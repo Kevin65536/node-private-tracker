@@ -41,7 +41,8 @@ import {
   InsertDriveFile as FileIcon,
   Close as CloseIcon,
   Image as ImageIcon,
-  BrokenImage as BrokenImageIcon
+  BrokenImage as BrokenImageIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -291,11 +292,23 @@ const TorrentDetailPage = () => {
     if (!torrent?.download_stats) return null;
     
     return {
-      seeding: torrent.download_stats.seeding || 0,
       downloading: torrent.download_stats.downloading || 0,
-      completed: torrent.download_stats.completed || 0
+      seeding: torrent.download_stats.seeding || 0,
+      completed: torrent.download_stats.completed || 0,
+      stopped: torrent.download_stats.stopped || 0
     };
   }, [torrent?.download_stats]);
+
+  const realTimeStats = useMemo(() => {
+    if (!torrent?.real_time_stats) return null;
+    
+    return {
+      seeders: torrent.real_time_stats.seeders || 0,
+      leechers: torrent.real_time_stats.leechers || 0,
+      total_peers: torrent.real_time_stats.total_peers || 0,
+      last_updated: torrent.real_time_stats.last_updated
+    };
+  }, [torrent?.real_time_stats]);
 
   const handleDownload = async () => {
     if (!user) {
@@ -466,51 +479,128 @@ const TorrentDetailPage = () => {
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-                <AssessmentIcon sx={{ mr: 1 }} />
-                下载统计
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
+                  <AssessmentIcon sx={{ mr: 1 }} />
+                  种子统计
+                </Typography>
+                <IconButton 
+                  size="small" 
+                  onClick={fetchTorrentDetail}
+                  disabled={loading}
+                  title="刷新统计"
+                >
+                  <RefreshIcon />
+                </IconButton>
+              </Box>
               
               <TableContainer>
                 <Table size="small">
                   <TableBody>
+                    {/* 实时统计 - 更重要，放在上面 */}
+                    {realTimeStats && (
+                      <>
+                        <TableRow>
+                          <TableCell colSpan={2}>
+                            <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 'bold' }}>
+                              📡 实时状态
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>当前做种</TableCell>
+                          <TableCell align="right">
+                            <Chip 
+                              label={realTimeStats.seeders} 
+                              color="success" 
+                              size="small"
+                              sx={{ fontWeight: 'bold' }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>当前下载</TableCell>
+                          <TableCell align="right">
+                            <Chip 
+                              label={realTimeStats.leechers} 
+                              color="warning" 
+                              size="small"
+                              sx={{ fontWeight: 'bold' }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>活跃peer总数</TableCell>
+                          <TableCell align="right">
+                            <Chip 
+                              label={realTimeStats.total_peers} 
+                              color="info" 
+                              size="small" 
+                            />
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell colSpan={2}>
+                            <Divider sx={{ my: 1 }} />
+                          </TableCell>
+                        </TableRow>
+                      </>
+                    )}
+                    
+                    {/* 历史统计 */}
                     <TableRow>
-                      <TableCell>下载次数</TableCell>
+                      <TableCell colSpan={2}>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          📚 历史记录
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>总下载次数</TableCell>
                       <TableCell align="right">{formattedTorrent.download_count}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell>做种中</TableCell>
+                      <TableCell>曾经做种</TableCell>
                       <TableCell align="right">
                         <Chip 
                           label={downloadStats?.seeding || 0} 
                           color="success" 
-                          size="small" 
+                          size="small"
+                          variant="outlined"
                         />
                       </TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell>下载中</TableCell>
+                      <TableCell>曾经下载</TableCell>
                       <TableCell align="right">
                         <Chip 
                           label={downloadStats?.downloading || 0} 
                           color="primary" 
-                          size="small" 
+                          size="small"
+                          variant="outlined"
                         />
                       </TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell>已完成</TableCell>
+                      <TableCell>已完成记录</TableCell>
                       <TableCell align="right">
                         <Chip 
                           label={downloadStats?.completed || 0} 
                           color="info" 
-                          size="small" 
+                          size="small"
+                          variant="outlined"
                         />
                       </TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
               </TableContainer>
+              
+              {realTimeStats?.last_updated && (
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  📅 更新时间: {formatDate(realTimeStats.last_updated)}
+                </Typography>
+              )}
             </CardContent>
           </Card>
         </Grid>

@@ -10,6 +10,7 @@ const { Torrent, User, Category, Download, UserStats, InfoHashVariant, sequelize
 const { authenticateToken } = require('../middleware/auth');
 const { getOrCreatePasskey, buildAnnounceUrl } = require('../utils/passkey');
 const { body, validationResult } = require('express-validator');
+const { peerManager } = require('../utils/tracker');
 
 const router = express.Router();
 
@@ -251,7 +252,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
       }
     }
 
-    // 获取下载统计
+    // 获取下载统计（数据库历史记录）
     const downloadStats = await Download.findAll({
       where: { torrent_id: torrent.id },
       attributes: [
@@ -273,11 +274,33 @@ router.get('/:id', optionalAuth, async (req, res) => {
       stats[stat.status] = parseInt(stat.count);
     });
 
+    // 获取实时tracker统计
+    let realTimeStats = null;
+    try {
+      if (torrent.info_hash) {
+        const trackerStats = peerManager.getTorrentStats(torrent.info_hash);
+        const activePeers = peerManager.getPeers(torrent.info_hash);
+        
+        realTimeStats = {
+          seeders: trackerStats.complete,
+          leechers: trackerStats.incomplete,
+          total_peers: activePeers.length,
+          last_updated: new Date()
+        };
+        
+        console.log(`📊 实时统计 ${torrent.info_hash}: 做种${trackerStats.complete} 下载${trackerStats.incomplete}`);
+      }
+    } catch (error) {
+      console.error('获取实时tracker统计失败:', error);
+      // 如果获取实时统计失败，继续使用数据库统计
+    }
+
     res.json({
       torrent: {
         ...torrent.toJSON(),
         file_info: torrentFileInfo,
-        download_stats: stats
+        download_stats: stats,
+        real_time_stats: realTimeStats
       }
     });
 

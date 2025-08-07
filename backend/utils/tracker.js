@@ -1,5 +1,5 @@
 const bencode = require('bncode');
-const { Peer, Torrent, AnnounceLog, UserStats } = require('../models');
+const { Peer, Torrent, AnnounceLog, UserStats, Download } = require('../models');
 const { validatePasskey } = require('../utils/passkey');
 
 /**
@@ -79,12 +79,12 @@ class PeerManager {
   }
 
   /**
-   * 清理过期的 peer (超过2分钟未 announce)
+   * 清理过期的 peer (超过30分钟未 announce)
    */
   cleanupExpiredPeers() {
     const now = Date.now();
-    const timeout = 2 * 60 * 1000; // 2分钟
-    
+    const timeout = 30 * 60 * 1000; // 30分钟
+
     for (const [infoHash, torrentPeers] of this.peers.entries()) {
       for (const [peerKey, peer] of torrentPeers.entries()) {
         if (now - peer.last_announce > timeout) {
@@ -252,10 +252,13 @@ async function handleAnnounce(req, res) {
       }
     });
 
+    let uploadedDiff = 0;
+    let downloadedDiff = 0;
+
     if (!created) {
       // 计算上传下载增量
-      const uploadedDiff = parseInt(uploaded) - peer.uploaded;
-      const downloadedDiff = parseInt(downloaded) - peer.downloaded;
+      uploadedDiff = parseInt(uploaded) - peer.uploaded;
+      downloadedDiff = parseInt(downloaded) - peer.downloaded;
 
       // 更新 peer 记录
       await peer.update({
@@ -272,6 +275,76 @@ async function handleAnnounce(req, res) {
       // 更新用户统计
       if (uploadedDiff > 0 || downloadedDiff > 0) {
         await updateUserStats(user.id, uploadedDiff, downloadedDiff);
+      }
+    } else {
+      // 新peer，计算增量（相对于0）
+      uploadedDiff = parseInt(uploaded);
+      downloadedDiff = parseInt(downloaded);
+    }
+
+    // 维护 Download 记录和状态 - 这是解决做种统计问题的关键
+    const leftAmount = parseInt(left);
+    let downloadStatus = 'downloading';
+    
+    // 根据事件和left字段确定状态
+    if (event === 'completed' || leftAmount === 0) {
+      downloadStatus = 'seeding';
+    } else if (event === 'stopped') {
+      downloadStatus = 'stopped';
+    } else if (leftAmount > 0) {
+      downloadStatus = 'downloading';
+    }
+
+    // 创建或更新 Download 记录
+    const [download, downloadCreated] = await Download.findOrCreate({
+      where: {
+        user_id: user.id,
+        torrent_id: torrent.id
+      },
+      defaults: {
+        uploaded: parseInt(uploaded),
+        downloaded: parseInt(downloaded),
+        left: leftAmount,
+        status: downloadStatus,
+        last_announce: new Date(),
+        peer_id: peer_id,
+        ip: clientIp,
+        port: clientPort,
+        user_agent: userAgent
+      }
+    });
+
+    if (!downloadCreated) {
+      // 更新现有 Download 记录
+      await download.update({
+        uploaded: parseInt(uploaded),
+        downloaded: parseInt(downloaded),
+        left: leftAmount,
+        status: downloadStatus,
+        last_announce: new Date(),
+        peer_id: peer_id,
+        ip: clientIp,
+        port: clientPort,
+        user_agent: userAgent
+      });
+    }
+
+    // 特别处理 completed 事件 - 确保状态正确转换
+    if (event === 'completed') {
+      console.log(`🎉 用户 ${user.username} 完成下载种子: ${torrent.name}`);
+      
+      // 确保Download状态为seeding
+      if (download.status !== 'seeding') {
+        await download.update({ status: 'seeding' });
+      }
+      
+      // 触发统计更新（可选：立即更新用户的做种统计）
+      try {
+        const { updateUserStats: updateFullUserStats } = require('../update-user-stats');
+        await updateFullUserStats(user.id);
+        console.log(`✅ 已更新用户 ${user.username} 的做种统计`);
+      } catch (updateError) {
+        console.error('更新用户做种统计失败:', updateError);
       }
     }
 
