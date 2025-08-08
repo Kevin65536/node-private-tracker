@@ -14,11 +14,14 @@ dist/
 .env.development.local
 .env.test.local
 .env.production.local
+!.env.example
 
 # Database files
 *.db
 *.sqlite
 *.sqlite3
+# Database backups
+backend/backup*.sql
 
 # Logs
 logs/
@@ -52,9 +55,6 @@ jspm_packages/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variables file
-.env
-
 # next.js build output
 .next
 
@@ -83,16 +83,11 @@ jspm_packages/
 ehthumbs.db
 Thumbs.db
 
-# Uploaded files (for PT站, 可能包含版权内容)
-backend/uploads/*.torrent
-backend/uploads/*.png
-backend/uploads/*.jpg
-backend/uploads/*.jpeg
-backend/uploads/*.gif
-backend/uploads/*.txt
-
-# Test files
-backend/test-data/*.torrent
+# Runtime data (PT uploads and logs)
+backend/uploads/
+!backend/uploads/.gitkeep
+backend/logs/
+backend/tmp/
 
 # Temporary files
 *.tmp
