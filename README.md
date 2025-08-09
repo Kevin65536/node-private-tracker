@@ -1,6 +1,6 @@
-# LZU PT站
+# Node PT
 
-一个基于Node.js和React的私有BitTorrent站点，专为LZU内部资源分享而设计。
+一个基于Node.js和React的私有BitTorrent站点。
 
 ## 🌟 功能特性
 
@@ -8,14 +8,13 @@
 - 👥 **用户管理**: 注册、登录、权限管理
 - 📁 **种子管理**: 上传、下载、搜索、分类
 - 📊 **统计系统**: 上传下载比例、积分计算
-- 🔐 **权限控制**: 多级用户权限（用户/VIP/版主/管理员）
-- 🎯 **邀请系统**: 邀请码注册（可选）
+- 🔐 **权限控制**: 不同用户权限（用户/管理员）
 
 ### 技术特性
 - ⚡ **现代技术栈**: Node.js + Express + React + Material-UI
 - 🛡️ **安全保障**: JWT认证、输入验证、SQL注入防护
 - 📱 **响应式设计**: 支持桌面和移动设备
-- 🗄️ **数据库**: SQLite（开发）/PostgreSQL（生产）
+- 🗄️ **数据库**: PostgreSQL
 - 🎨 **用户界面**: Material-UI组件库
 
 ## 🚀 快速开始
@@ -40,11 +39,6 @@ npm run dev
 
 - **前端应用**: http://localhost:3000
 - **后端API**: http://localhost:3001/api
-
-### 👤 测试账户
-
-- **管理员**: admin / admin123456  
-- **普通用户**: testuser / test123456
 
 ### 🔧 分步安装
 
@@ -162,48 +156,3 @@ REACT_APP_API_URL=http://localhost:3001/api
 REACT_APP_SITE_NAME=LZU PT站
 ```
 
-## 📦 部署
-
-### 生产环境部署
-1. 构建前端应用
-2. 配置反向代理（nginx）
-3. 设置PM2进程管理
-4. 配置SSL证书
-5. 设置定时任务
-
-### Docker部署（计划中）
-```bash
-docker-compose up -d
-```
-
-## 🤝 贡献指南
-
-1. Fork本项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 创建Pull Request
-
-## 📄 许可证
-
-本项目采用MIT许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
-## 🙏 致谢
-
-- [Node.js](https://nodejs.org/) - 后端运行时
-- [React](https://reactjs.org/) - 前端框架
-- [Material-UI](https://mui.com/) - UI组件库
-- [Express](https://expressjs.com/) - Web框架
-- [Sequelize](https://sequelize.org/) - ORM框架
-
-## 📞 支持
-
-如果您在使用过程中遇到问题，请：
-1. 查看文档和FAQ
-2. 搜索已有的Issues
-3. 创建新的Issue描述问题
-4. 加入讨论群组
-
----
-
-**注意**: 本项目仅供教育和学习使用，请遵守相关法律法规。
