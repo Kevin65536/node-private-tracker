@@ -471,7 +471,7 @@ router.get('/points-log', authenticateToken, async (req, res) => {
       reason: r.reason,
       balance_after: r.balance_after != null ? parseFloat(r.balance_after) : null,
       context: r.context || null,
-      created_at: r.created_at
+      created_at: r.createdAt || r.created_at // 兼容驼峰和下划线命名
     }));
 
     res.json({

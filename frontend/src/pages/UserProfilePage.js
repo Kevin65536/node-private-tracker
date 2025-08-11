@@ -167,13 +167,23 @@ const UserProfilePage = () => {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+      const date = new Date(dateString);
+      // 检查日期是否有效
+      if (isNaN(date.getTime())) return 'N/A';
+      
+      return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Shanghai' // 明确指定中国时区
+      });
+    } catch (error) {
+      console.error('时间格式化错误:', error, dateString);
+      return 'N/A';
+    }
   };
 
   // 角色/状态/分享率工具函数
@@ -701,7 +711,13 @@ const UserProfilePage = () => {
                         const down = log.context.downloadedDiff || 0;
                         desc = `上传+${(up/1024/1024/1024).toFixed(2)}GB, 下载+${(down/1024/1024/1024).toFixed(2)}GB`;
                       } else if (log.reason === 'seeding_hourly' && log.context) {
-                        desc = `做种${(log.context.stepSeconds/3600).toFixed(2)}h, ${log.context.seeders ?? '?'}做种, ${log.context.sizeGiB?.toFixed?.(2) ?? '?'}GiB`;
+                        if (log.context.totalTorrents) {
+                          // 新格式：汇总记录
+                          desc = `做种${(log.context.stepSeconds/3600).toFixed(1)}h, ${log.context.totalTorrents}个种子, 合计+${log.context.totalDelta?.toFixed?.(2) ?? log.change}BP`;
+                        } else {
+                          // 旧格式：单条记录（向下兼容）
+                          desc = `做种${(log.context.stepSeconds/3600).toFixed(2)}h, ${log.context.seeders ?? '?'}做种, ${log.context.sizeGiB?.toFixed?.(2) ?? '?'}GiB`;
+                        }
                       } else if (log.reason === 'approval_bonus' && log.context) {
                         desc = `审核通过奖励, 种子#${log.context.torrent_id}`;
                       }
