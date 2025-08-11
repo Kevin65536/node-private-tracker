@@ -274,10 +274,8 @@ async function handleAnnounce(req, res) {
         announces: peer.announces + 1
       });
 
-      // 更新用户统计
-      if (uploadedDiff > 0 || downloadedDiff > 0) {
-        await updateUserStats(user.id, uploadedDiff, downloadedDiff);
-      }
+      // 更新用户统计 - 注意：这里的增量逻辑已移到Download处理中
+      // 这里只是为了保持Peer表的统计功能，实际UserStats更新在后面统一处理
     } else {
       // 新peer，计算增量（相对于0）
       uploadedDiff = parseInt(uploaded);
@@ -312,23 +310,60 @@ async function handleAnnounce(req, res) {
         peer_id: peer_id,
         ip: clientIp,
         port: clientPort,
-        user_agent: userAgent
+        user_agent: userAgent,
+        last_reported_uploaded: parseInt(uploaded),
+        last_reported_downloaded: parseInt(downloaded)
       }
     });
 
+    let actualUploadedDiff = 0;
+    let actualDownloadedDiff = 0;
+
     if (!downloadCreated) {
-      // 更新现有 Download 记录
+      // 计算真实增量
+      const reportedUploaded = parseInt(uploaded);
+      const reportedDownloaded = parseInt(downloaded);
+      const lastReportedUploaded = download.last_reported_uploaded || 0;
+      const lastReportedDownloaded = download.last_reported_downloaded || 0;
+
+      // 检测客户端重启（上报值明显小于上次记录）
+      const uploadRestart = reportedUploaded < lastReportedUploaded * 0.9;
+      const downloadRestart = reportedDownloaded < lastReportedDownloaded * 0.9;
+
+      if (uploadRestart || downloadRestart) {
+        console.log(`🔄 检测到客户端重启，用户${user.id}种子${torrent.id}，重置baseline`);
+        // 客户端重启，从当前值开始重新计算
+        actualUploadedDiff = 0;
+        actualDownloadedDiff = 0;
+      } else {
+        // 正常增量计算
+        actualUploadedDiff = Math.max(0, reportedUploaded - lastReportedUploaded);
+        actualDownloadedDiff = Math.max(0, reportedDownloaded - lastReportedDownloaded);
+      }
+
+      // 更新Download记录：累加历史值，更新会话值
       await download.update({
-        uploaded: parseInt(uploaded),
-        downloaded: parseInt(downloaded),
+        uploaded: download.uploaded + actualUploadedDiff,
+        downloaded: download.downloaded + actualDownloadedDiff,
         left: leftAmount,
         status: downloadStatus,
         last_announce: new Date(),
         peer_id: peer_id,
         ip: clientIp,
         port: clientPort,
-        user_agent: userAgent
+        user_agent: userAgent,
+        last_reported_uploaded: reportedUploaded,
+        last_reported_downloaded: reportedDownloaded
       });
+    } else {
+      // 新记录，使用客户端上报值作为初始累计值
+      actualUploadedDiff = parseInt(uploaded);
+      actualDownloadedDiff = parseInt(downloaded);
+    }
+
+    // 更新UserStats（使用实际增量）
+    if (actualUploadedDiff > 0 || actualDownloadedDiff > 0) {
+      await updateUserStats(user.id, actualUploadedDiff, actualDownloadedDiff);
     }
 
     // 特别处理 completed 事件 - 确保状态正确转换

@@ -136,10 +136,12 @@ const UserManagement = () => {
     return num.toFixed(decimals);
   };
 
-  // 格式化文件大小
+  // 格式化文件大小 - 使用更安全的实现
   const formatFileSize = (bytes) => {
-    if (!bytes || bytes === 0 || isNaN(bytes)) return '0 B';
-    const numBytes = Number(bytes);
+    // 统一转换为数字类型
+    const numBytes = parseInt(bytes) || 0;
+    if (numBytes === 0) return '0 B';
+    
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(numBytes) / Math.log(1024));
     return `${(numBytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;

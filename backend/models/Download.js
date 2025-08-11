@@ -25,15 +25,28 @@ module.exports = (sequelize) => {
     },
     uploaded: {
       type: DataTypes.BIGINT,
-      defaultValue: 0
+      defaultValue: 0,
+      comment: '历史累计上传量'
     },
     downloaded: {
       type: DataTypes.BIGINT,
-      defaultValue: 0
+      defaultValue: 0,
+      comment: '历史累计下载量'
     },
     left: {
       type: DataTypes.BIGINT,
       defaultValue: 0
+    },
+    // 客户端当前会话的上报值，用于计算增量
+    last_reported_uploaded: {
+      type: DataTypes.BIGINT,
+      defaultValue: 0,
+      comment: '客户端最后上报的上传量（会话值）'
+    },
+    last_reported_downloaded: {
+      type: DataTypes.BIGINT,
+      defaultValue: 0,
+      comment: '客户端最后上报的下载量（会话值）'
     },
     status: {
       type: DataTypes.ENUM('downloading', 'seeding', 'stopped', 'completed'),

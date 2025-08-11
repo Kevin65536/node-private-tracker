@@ -11,13 +11,13 @@ module.exports = {
   // 做种时长积分（按小时结算）
   seeding: {
     // 基础 BP/小时（每个正在做种的种子）
-    basePerHour: 0.2,
+    basePerHour: 0.1,
     // 体积项系数：k1 * sqrt(sizeGiB)
-    sizeSqrtK: 0.15,
+    sizeSqrtK: 0.08,
     // 稀缺项系数：k2 / sqrt(seeders + 1)
-    scarcityK: 0.6,
+    scarcityK: 0.3,
     // 新种额外加成（在新种窗口内）
-    newTorrentBonus: 0.5,
+    newTorrentBonus: 0.3,
     // 新种窗口（小时），用于冷启动激励
     newTorrentWindowHours: 72,
     // 认为“活跃”的 announce 时间窗口（小时），超过则暂不计时/积分
@@ -27,10 +27,10 @@ module.exports = {
     // 稀缺分层加成（按小时，叠加在上式基础上）
     // 当实时做种数 <= 对应 maxSeeders 时，附加 bonusPerHour
     scarcityTiers: [
-      { maxSeeders: 0, bonusPerHour: 0.8 },
-      { maxSeeders: 1, bonusPerHour: 0.6 },
-      { maxSeeders: 2, bonusPerHour: 0.4 },
-      { maxSeeders: 5, bonusPerHour: 0.2 }
+      { maxSeeders: 0, bonusPerHour: 0.4 },
+      { maxSeeders: 1, bonusPerHour: 0.3 },
+      { maxSeeders: 2, bonusPerHour: 0.2 },
+      { maxSeeders: 5, bonusPerHour: 0.1 }
     ]
   },
 

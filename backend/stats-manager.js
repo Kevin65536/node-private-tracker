@@ -34,6 +34,8 @@ PT站统计管理工具
   verify                   验证统计数据一致性
   cleanup                  清理过期数据
   reset-user <userId>      重置用户统计数据
+  fix-download-stats       修复Download表统计数据（从AnnounceLog重建）
+  add-session-fields       添加Download表会话跟踪字段
 
 示例:
   node stats-manager.js update-all
@@ -249,6 +251,16 @@ async function main() {
           process.exit(1);
         }
         await resetUserStats(args[1]);
+        break;
+        
+      case 'fix-download-stats':
+        const { fixDownloadStats } = require('./fix-download-stats');
+        await fixDownloadStats();
+        break;
+        
+      case 'add-session-fields':
+        const { addSessionFields } = require('./add-download-session-fields');
+        await addSessionFields();
         break;
         
       default:

@@ -36,10 +36,11 @@ class StatsScheduler {
       await this.updateActiveStats();
     }, { scheduled: false }));
 
-    // 每天凌晨2点更新用户统计
-    this.jobs.set('updateUserStats', cron.schedule('0 2 * * *', async () => {
-      await this.updateAllUserStats();
-    }, { scheduled: false }));
+    // 每天凌晨2点更新用户统计 - 暂时禁用以防止数据覆盖
+    // TODO: 修复Download表数据逻辑后再启用
+    // this.jobs.set('updateUserStats', cron.schedule('0 2 * * *', async () => {
+    //   await this.updateAllUserStats();
+    // }, { scheduled: false }));
 
     // 每周清理旧的announce日志
     this.jobs.set('cleanupLogs', cron.schedule('0 3 * * 0', async () => {
@@ -354,19 +355,31 @@ class StatsScheduler {
         const next = Math.max(0, Math.round((current + delta) * 100) / 100);
         await stats.update({ bonus_points: next });
 
-        // 写入该用户所有细项的日志（逐条）
-        for (const item of detailedLogs.filter(x => x.userId === userId)) {
-          try {
-            await PointsLog.create({
-              user_id: userId,
-              change: Math.round(item.delta * 100) / 100,
-              reason: 'seeding_hourly',
-              balance_after: next, // 记录结算后的余额（非逐条叠加后的精确余额，仅供前端展示）
-              context: item.context
-            });
-          } catch (logErr) {
-            console.error('写入时长积分日志失败:', logErr);
-          }
+        // 写入该用户的汇总积分日志（一次记录，包含所有做种项目的总和）
+        const userLogs = detailedLogs.filter(x => x.userId === userId);
+        const contextSummary = {
+          totalTorrents: userLogs.length,
+          totalDelta: delta,
+          stepSeconds: step,
+          details: userLogs.map(item => ({
+            torrent_id: item.context.torrent_id,
+            sizeGiB: item.context.sizeGiB,
+            seeders: item.context.seeders,
+            isNew: item.context.isNew,
+            delta: item.delta
+          }))
+        };
+
+        try {
+          await PointsLog.create({
+            user_id: userId,
+            change: Math.round(delta * 100) / 100,
+            reason: 'seeding_hourly',
+            balance_after: next,
+            context: contextSummary
+          });
+        } catch (logErr) {
+          console.error('写入时长积分日志失败:', logErr);
         }
 
         console.log(`⏫ 做种时长奖励：用户 ${userId} +${delta.toFixed(2)} BP（累计=${next.toFixed(2)}）`);
