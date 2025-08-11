@@ -57,6 +57,7 @@ const UserStats = require('./UserStats')(sequelize);
 const UserPasskey = require('./UserPasskey')(sequelize);
 const Peer = require('./Peer')(sequelize);
 const AnnounceLog = require('./AnnounceLog')(sequelize);
+const PointsLog = require('./PointsLog')(sequelize);
 // InfoHashVariant 模型已移除，因为修复了种子生成逻辑
 
 // 定义关联关系
@@ -136,6 +137,10 @@ AnnounceLog.belongsTo(Torrent, {
   foreignKey: 'torrent_id'
 });
 
+// 积分日志关联
+User.hasMany(PointsLog, { foreignKey: 'user_id' });
+PointsLog.belongsTo(User, { foreignKey: 'user_id' });
+
 module.exports = {
   sequelize,
   User,
@@ -145,6 +150,7 @@ module.exports = {
   UserStats,
   UserPasskey,
   Peer,
-  AnnounceLog
+  AnnounceLog,
+  PointsLog
   // InfoHashVariant 已移除
 };

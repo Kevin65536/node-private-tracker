@@ -1,6 +1,8 @@
 const bencode = require('bncode');
 const { Peer, Torrent, AnnounceLog, UserStats, Download } = require('../models');
 const { validatePasskey } = require('../utils/passkey');
+const pointsConfig = require('../config/points');
+const { PointsLog } = require('../models');
 
 /**
  * Peer 管理器 - 内存存储活跃 peer
@@ -458,7 +460,7 @@ async function updateUserStats(userId, uploadedDiff, downloadedDiff) {
         downloaded: downloadedDiff
       });
 
-      // 根据上传下载量计算积分变化
+      // 根据上传下载量计算积分变化（参数化）
       const bonusPointsChange = calculateBonusPoints(uploadedDiff, downloadedDiff);
       
       if (bonusPointsChange !== 0) {
@@ -466,11 +468,26 @@ async function updateUserStats(userId, uploadedDiff, downloadedDiff) {
         const currentBonusPoints = parseFloat(userStats.bonus_points) || 0;
         const newBonusPoints = Math.max(0, currentBonusPoints + bonusPointsChange);
         
-        // 更新积分，确保不低于0
-        await userStats.update({
-          bonus_points: newBonusPoints
-        });
+        await userStats.update({ bonus_points: newBonusPoints });
         
+        // 写入积分日志
+        try {
+          await PointsLog.create({
+            user_id: userId,
+            change: Math.round(bonusPointsChange * 100) / 100,
+            reason: 'traffic',
+            balance_after: newBonusPoints,
+            context: {
+              uploadedDiff,
+              downloadedDiff,
+              perGBUpload: pointsConfig?.traffic?.uploadPerGB,
+              perGBDownloadPenalty: pointsConfig?.traffic?.downloadPenaltyPerGB
+            }
+          });
+        } catch (logErr) {
+          console.error('写入积分日志失败:', logErr);
+        }
+
         console.log(`用户${userId}积分变化: ${bonusPointsChange > 0 ? '+' : ''}${bonusPointsChange} (${currentBonusPoints} → ${newBonusPoints})`);
       }
     }
@@ -479,25 +496,18 @@ async function updateUserStats(userId, uploadedDiff, downloadedDiff) {
   }
 }
 
-/**
- * 计算奖励积分
- */
 function calculateBonusPoints(uploadedDiff, downloadedDiff) {
-  // PT站积分策略：
-  // - 每上传1GB获得1积分（鼓励分享）
-  // - 每下载1GB扣除0.5积分（控制下载但不过于严苛）
-  // - 使用更精确的计算，避免小量传输被忽略
-  
+  // 使用配置进行参数化
+  const upPerGB = pointsConfig?.traffic?.uploadPerGB ?? 1.0;
+  const downPenaltyPerGB = pointsConfig?.traffic?.downloadPenaltyPerGB ?? 0.5;
+
   const uploadGBs = uploadedDiff / (1024 * 1024 * 1024);
   const downloadGBs = downloadedDiff / (1024 * 1024 * 1024);
   
-  // 使用更精确的计算，保留小数点后2位，然后四舍五入
-  const uploadBonus = Math.round(uploadGBs * 1 * 100) / 100;
-  const downloadPenalty = Math.round(downloadGBs * 0.5 * 100) / 100;
+  const uploadBonus = Math.round(uploadGBs * upPerGB * 100) / 100;
+  const downloadPenalty = Math.round(downloadGBs * downPenaltyPerGB * 100) / 100;
   
   const totalChange = uploadBonus - downloadPenalty;
-  
-  // 最终结果四舍五入到小数点后2位
   return Math.round(totalChange * 100) / 100;
 }
 

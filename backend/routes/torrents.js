@@ -11,6 +11,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { getOrCreatePasskey, buildAnnounceUrl } = require('../utils/passkey');
 const { body, validationResult } = require('express-validator');
 const { peerManager } = require('../utils/tracker');
+const pointsConfig = require('../config/points');
 
 const router = express.Router();
 

@@ -31,7 +31,13 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Snackbar
+  Snackbar,
+  Pagination,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Stack
 } from '@mui/material';
 import {
   Person,
@@ -49,12 +55,23 @@ import {
   Storage,
   PhotoCamera,
   Delete as DeleteIcon,
-  Edit as EditIcon
+  Edit as EditIcon,
+  ReceiptLong
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { getApiBaseUrl } from '../utils/networkConfig';
 import CustomAvatar from '../components/CustomAvatar';
+
+const reasonLabel = (reason) => {
+  switch (reason) {
+    case 'traffic': return '流量积分';
+    case 'seeding_hourly': return '做种时长';
+    case 'approval_bonus': return '审核奖励';
+    case 'admin_adjust': return '管理员调整';
+    default: return reason || '其他';
+  }
+};
 
 const UserProfilePage = () => {
   const { user, updateUser } = useAuth();
@@ -62,8 +79,11 @@ const UserProfilePage = () => {
   const [error, setError] = useState(null);
   const [userStats, setUserStats] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
-  const [recentTorrents, setRecentTorrents] = useState([]);
+  const [pointsLogs, setPointsLogs] = useState([]);
+  const [pointsPagination, setPointsPagination] = useState({ current_page: 1, total_pages: 1 });
   const [activeTab, setActiveTab] = useState(0);
+  const [reason, setReason] = useState('');
+  const [page, setPage] = useState(1);
   
   // 头像上传相关状态
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
@@ -75,6 +95,7 @@ const UserProfilePage = () => {
 
   useEffect(() => {
     fetchUserProfile();
+    fetchPointsLogs(1, '');
   }, []);
 
   const fetchUserProfile = async () => {
@@ -82,7 +103,7 @@ const UserProfilePage = () => {
       setLoading(true);
       setError(null);
 
-      // 并行获取用户信息、统计数据和最近活动
+      // 并行获取用户信息、统计数据
       const [profileResponse, statsResponse] = await Promise.all([
         api.get('/users/profile'),
         api.get('/users/stats')
@@ -90,15 +111,6 @@ const UserProfilePage = () => {
 
       setUserProfile(profileResponse.data.user);
       setUserStats(statsResponse.data.stats);
-
-      // 尝试获取最近的种子活动
-      try {
-        const torrentsResponse = await api.get('/torrents?limit=5&uploader=' + user.id);
-        setRecentTorrents(torrentsResponse.data.torrents || []);
-      } catch (torrentsError) {
-        console.log('获取最近种子活动失败:', torrentsError);
-        setRecentTorrents([]);
-      }
 
     } catch (error) {
       console.error('获取用户资料失败:', error);
@@ -128,6 +140,23 @@ const UserProfilePage = () => {
     }
   };
 
+  const fetchPointsLogs = async (pageParam = 1, reasonParam = reason) => {
+    try {
+      const params = new URLSearchParams();
+      params.set('page', pageParam);
+      params.set('limit', 20);
+      if (reasonParam) params.set('reason', reasonParam);
+      const resp = await api.get(`/users/points-log?${params.toString()}`);
+      setPointsLogs(resp.data.logs || []);
+      setPointsPagination(resp.data.pagination || { current_page: pageParam, total_pages: 1 });
+      setPage(pageParam);
+    } catch (err) {
+      console.error('获取积分日志失败:', err);
+      setPointsLogs([]);
+      setPointsPagination({ current_page: 1, total_pages: 1 });
+    }
+  };
+
   const formatFileSize = (bytes) => {
     if (!bytes || bytes === 0) return '0 B';
     const k = 1024;
@@ -147,6 +176,7 @@ const UserProfilePage = () => {
     });
   };
 
+  // 角色/状态/分享率工具函数
   const getRoleColor = (role) => {
     switch (role) {
       case 'admin': return 'error';
@@ -195,22 +225,9 @@ const UserProfilePage = () => {
   // 获取头像URL
   const getAvatarUrl = (avatar) => {
     if (!avatar) return null;
-    
-    // 使用与API相同的基础URL配置
     const apiBaseUrl = getApiBaseUrl();
     const serverBaseUrl = apiBaseUrl.replace('/api', '');
-    // 添加时间戳避免缓存问题
-    const avatarUrl = `${serverBaseUrl}/uploads/avatars/${avatar}?t=${Date.now()}`;
-    
-    // 添加调试日志
-    console.log('构建头像URL:', {
-      avatar,
-      apiBaseUrl,
-      serverBaseUrl,
-      avatarUrl
-    });
-    
-    return avatarUrl;
+    return `${serverBaseUrl}/uploads/avatars/${avatar}?t=${Date.now()}`;
   };
 
   // 打开头像上传对话框
@@ -229,21 +246,16 @@ const UserProfilePage = () => {
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
     if (file) {
-      // 验证文件类型
       if (!file.type.startsWith('image/')) {
         setSnackbarMessage('请选择图片文件');
         setSnackbarOpen(true);
         return;
       }
-
-      // 验证文件大小（5MB）
       if (file.size > 5 * 1024 * 1024) {
         setSnackbarMessage('文件大小不能超过5MB');
         setSnackbarOpen(true);
         return;
       }
-
-      // 创建预览
       const reader = new FileReader();
       reader.onload = (e) => {
         setAvatarPreview(e.target.result);
@@ -273,13 +285,11 @@ const UserProfilePage = () => {
         },
       });
 
-      // 更新用户资料
       setUserProfile(prev => ({
         ...prev,
         avatar: response.data.avatar
       }));
 
-      // 更新AuthContext中的用户信息
       updateUser({
         ...user,
         avatar: response.data.avatar
@@ -307,13 +317,11 @@ const UserProfilePage = () => {
     try {
       await api.delete('/users/avatar');
       
-      // 更新用户资料
       setUserProfile(prev => ({
         ...prev,
         avatar: null
       }));
 
-      // 更新AuthContext中的用户信息
       updateUser({
         ...user,
         avatar: null
@@ -327,6 +335,12 @@ const UserProfilePage = () => {
       setSnackbarMessage(error.response?.data?.error || '头像删除失败');
       setSnackbarOpen(true);
     }
+  };
+
+  const handleReasonChange = (e) => {
+    const newReason = e.target.value;
+    setReason(newReason);
+    fetchPointsLogs(1, newReason);
   };
 
   if (loading) {
@@ -628,59 +642,107 @@ const UserProfilePage = () => {
         </CardContent>
       </Card>
 
-      {/* 最近活动标签页 */}
-      {recentTorrents.length > 0 && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-              <History sx={{ mr: 1 }} />
-              最近活动
+      {/* 积分日志 */}
+      <Card>
+        <CardContent>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
+              <ReceiptLong sx={{ mr: 1 }} />
+              积分日志
             </Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel id="points-reason-label">类型</InputLabel>
+                <Select
+                  labelId="points-reason-label"
+                  id="points-reason"
+                  value={reason}
+                  label="类型"
+                  onChange={handleReasonChange}
+                {
+                  ...{
+                    MenuProps: { disableScrollLock: true }
+                  }
+                }
+                >
+                  <MenuItem value=""><em>全部</em></MenuItem>
+                  <MenuItem value="traffic">{reasonLabel('traffic')}</MenuItem>
+                  <MenuItem value="seeding_hourly">{reasonLabel('seeding_hourly')}</MenuItem>
+                  <MenuItem value="approval_bonus">{reasonLabel('approval_bonus')}</MenuItem>
+                  <MenuItem value="admin_adjust">{reasonLabel('admin_adjust')}</MenuItem>
+                </Select>
+              </FormControl>
+              <IconButton onClick={() => fetchPointsLogs(pointsPagination.current_page, reason)} size="small">
+                <Refresh />
+              </IconButton>
+            </Stack>
+          </Box>
 
-            <Tabs value={activeTab} onChange={handleTabChange} sx={{ mb: 2 }}>
-              <Tab label="最近上传" />
-            </Tabs>
-
-            {activeTab === 0 && (
+          {pointsLogs.length > 0 ? (
+            <>
               <TableContainer>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>种子名称</TableCell>
-                      <TableCell>大小</TableCell>
-                      <TableCell>上传时间</TableCell>
-                      <TableCell>状态</TableCell>
+                      <TableCell>时间</TableCell>
+                      <TableCell>变动</TableCell>
+                      <TableCell>类型</TableCell>
+                      <TableCell>说明</TableCell>
+                      <TableCell align="right">余额</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {recentTorrents.map((torrent) => (
-                      <TableRow key={torrent.id}>
-                        <TableCell>{torrent.name}</TableCell>
-                        <TableCell>{formatFileSize(torrent.size)}</TableCell>
-                        <TableCell>{formatDate(torrent.created_at)}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={torrent.status === 'approved' ? '已审核' : '审核中'}
-                            color={torrent.status === 'approved' ? 'success' : 'warning'}
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {pointsLogs.map((log) => {
+                      const changeNum = Number(log.change) || 0;
+                      const isPositive = changeNum >= 0;
+                      let desc = '';
+                      if (log.reason === 'traffic' && log.context) {
+                        const up = log.context.uploadedDiff || 0;
+                        const down = log.context.downloadedDiff || 0;
+                        desc = `上传+${(up/1024/1024/1024).toFixed(2)}GB, 下载+${(down/1024/1024/1024).toFixed(2)}GB`;
+                      } else if (log.reason === 'seeding_hourly' && log.context) {
+                        desc = `做种${(log.context.stepSeconds/3600).toFixed(2)}h, ${log.context.seeders ?? '?'}做种, ${log.context.sizeGiB?.toFixed?.(2) ?? '?'}GiB`;
+                      } else if (log.reason === 'approval_bonus' && log.context) {
+                        desc = `审核通过奖励, 种子#${log.context.torrent_id}`;
+                      }
+                      return (
+                        <TableRow key={log.id}>
+                          <TableCell>{formatDate(log.created_at)}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={`${isPositive ? '+' : ''}${changeNum.toFixed(2)}`}
+                              color={isPositive ? 'success' : 'error'}
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell>{reasonLabel(log.reason)}</TableCell>
+                          <TableCell>{desc || '-'}</TableCell>
+                          <TableCell align="right">{log.balance_after != null ? Number(log.balance_after).toFixed(2) : '-'}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </TableContainer>
-            )}
+              <Box display="flex" justifyContent="flex-end" py={2}>
+                <Pagination
+                  color="primary"
+                  count={pointsPagination.total_pages || 1}
+                  page={pointsPagination.current_page || page}
+                  onChange={(e, value) => fetchPointsLogs(value, reason)}
+                  showFirstButton
+                  showLastButton
+                />
+              </Box>
+            </>
+          ) : (
+            <Typography color="text.secondary" align="center" py={2}>
+              暂无积分变动记录
+            </Typography>
+          )}
+        </CardContent>
+      </Card>
 
-            {recentTorrents.length === 0 && (
-              <Typography color="text.secondary" align="center" py={2}>
-                暂无最近活动记录
-              </Typography>
-            )}
-          </CardContent>
-        </Card>
-      )}
-      
       {/* 头像上传对话框 */}
       <Dialog open={avatarDialogOpen} onClose={handleAvatarDialogClose} maxWidth="sm" fullWidth>
         <DialogTitle>更换头像</DialogTitle>

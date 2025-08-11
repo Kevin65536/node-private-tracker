@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { Op } = require('sequelize');
-const { User, UserStats, Torrent, Download } = require('../models');
+const { User, UserStats, Torrent, Download, PointsLog } = require('../models');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
 const { getOrCreatePasskey, regeneratePasskey, buildAnnounceUrl } = require('../utils/passkey');
@@ -444,6 +444,48 @@ router.patch('/:id/status', authenticateToken, requireAdmin, [
     res.status(500).json({
       error: '更新用户状态失败'
     });
+  }
+});
+
+// 获取用户积分日志（支持分页与按原因筛选）
+router.get('/points-log', authenticateToken, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const reason = req.query.reason;
+    const offset = (page - 1) * limit;
+
+    const where = { user_id: req.user.id };
+    if (reason) where.reason = reason;
+
+    const { count, rows } = await PointsLog.findAndCountAll({
+      where,
+      limit,
+      offset,
+      order: [['created_at', 'DESC']]
+    });
+
+    const logs = rows.map((r) => ({
+      id: r.id,
+      change: parseFloat(r.change),
+      reason: r.reason,
+      balance_after: r.balance_after != null ? parseFloat(r.balance_after) : null,
+      context: r.context || null,
+      created_at: r.created_at
+    }));
+
+    res.json({
+      logs,
+      pagination: {
+        current_page: page,
+        total_pages: Math.ceil(count / limit),
+        total_items: count,
+        items_per_page: limit
+      }
+    });
+  } catch (error) {
+    console.error('获取积分日志失败:', error);
+    res.status(500).json({ error: '获取积分日志失败' });
   }
 });
 

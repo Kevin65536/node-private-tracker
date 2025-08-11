@@ -5,8 +5,10 @@ const {
   UserStats, 
   Download, 
   Torrent, 
-  AnnounceLog 
+  AnnounceLog,
+  PointsLog 
 } = require('../models');
+const pointsConfig = require('../config/points');
 
 /**
  * 统计任务调度器
@@ -92,6 +94,9 @@ class StatsScheduler {
       for (const user of users) {
         await this.updateUserActiveStats(user.id);
       }
+
+      // 做种/下载时长累加与时长积分发放
+      await this.awardSeedingTimeAndPoints();
 
       const duration = Date.now() - startTime;
       console.log(`✅ 活跃种子统计更新完成，耗时: ${duration}ms`);
@@ -265,6 +270,110 @@ class StatsScheduler {
 
     } catch (error) {
       console.error('清理announce日志失败:', error);
+    }
+  }
+
+  /**
+   * 做种/下载时长累加并按小时发放做种积分
+   */
+  async awardSeedingTimeAndPoints() {
+    const { seeding } = pointsConfig;
+    const step = seeding.timeStepSeconds || 3600;
+
+    try {
+      // 选取在 considerActiveWithinHours 内有 announce 的 Download 记录
+      const activeSince = new Date(Date.now() - (seeding.considerActiveWithinHours || 2) * 3600 * 1000);
+      const downloads = await Download.findAll({
+        where: {
+          last_announce: { [Sequelize.Op.gte]: activeSince },
+          status: ['seeding', 'downloading']
+        },
+        include: [{ model: Torrent, attributes: ['id', 'size', 'seeders', 'created_at'] }]
+      });
+
+      // 按用户聚合积分增量
+      const userPointDelta = new Map();
+      const detailedLogs = []; // 每条记录对应一个做种条目（用于写日志）
+
+      for (const d of downloads) {
+        const userId = d.user_id;
+        const isSeeding = d.status === 'seeding' || Number(d.left) === 0;
+        const isLeeching = !isSeeding;
+
+        // 累加时长
+        const [stats] = await UserStats.findOrCreate({
+          where: { user_id: userId },
+          defaults: { uploaded: 0, downloaded: 0, bonus_points: 0, seedtime: 0, leechtime: 0, torrents_uploaded: 0, torrents_seeding: 0, torrents_leeching: 0, invitations: 0 }
+        });
+
+        if (isSeeding) {
+          await stats.increment({ seedtime: step });
+        } else {
+          await stats.increment({ leechtime: step });
+        }
+
+        // 仅做种时长产生积分
+        if (isSeeding) {
+          const sizeGiB = Math.max(0, (parseFloat(d.Torrent?.size) || 0) / (1024 * 1024 * 1024));
+          const seeders = Math.max(0, parseInt(d.Torrent?.seeders || 0));
+          const createdAt = d.Torrent?.created_at || d.Torrent?.createdAt;
+          const isNew = createdAt ? (Date.now() - new Date(createdAt).getTime()) < (seeding.newTorrentWindowHours || 72) * 3600 * 1000 : false;
+
+          let perHour = (seeding.basePerHour || 0) 
+            + (seeding.sizeSqrtK || 0) * Math.sqrt(sizeGiB)
+            + (seeding.scarcityK || 0) / Math.sqrt(seeders + 1);
+
+          if (isNew) perHour += (seeding.newTorrentBonus || 0);
+
+          let tierExtra = 0;
+          if (Array.isArray(seeding.scarcityTiers) && seeding.scarcityTiers.length > 0) {
+            for (const tier of seeding.scarcityTiers) {
+              if (typeof tier.maxSeeders === 'number' && seeders <= tier.maxSeeders) {
+                tierExtra = Math.max(tierExtra, parseFloat(tier.bonusPerHour) || 0);
+              }
+            }
+            perHour += tierExtra;
+          }
+
+          // 向下保留两位小数
+          perHour = Math.floor(perHour * 100) / 100;
+
+          if (perHour > 0) {
+            const prev = userPointDelta.get(userId) || 0;
+            userPointDelta.set(userId, prev + perHour);
+            detailedLogs.push({ userId, delta: perHour, context: { torrent_id: d.torrent_id, sizeGiB, seeders, isNew, stepSeconds: step, tierExtra } });
+          }
+        }
+      }
+
+      // 批量更新用户积分
+      for (const [userId, delta] of userPointDelta.entries()) {
+        const stats = await UserStats.findOne({ where: { user_id: userId } });
+        if (!stats) continue;
+        const current = parseFloat(stats.bonus_points) || 0;
+        const next = Math.max(0, Math.round((current + delta) * 100) / 100);
+        await stats.update({ bonus_points: next });
+
+        // 写入该用户所有细项的日志（逐条）
+        for (const item of detailedLogs.filter(x => x.userId === userId)) {
+          try {
+            await PointsLog.create({
+              user_id: userId,
+              change: Math.round(item.delta * 100) / 100,
+              reason: 'seeding_hourly',
+              balance_after: next, // 记录结算后的余额（非逐条叠加后的精确余额，仅供前端展示）
+              context: item.context
+            });
+          } catch (logErr) {
+            console.error('写入时长积分日志失败:', logErr);
+          }
+        }
+
+        console.log(`⏫ 做种时长奖励：用户 ${userId} +${delta.toFixed(2)} BP（累计=${next.toFixed(2)}）`);
+      }
+
+    } catch (err) {
+      console.error('做种时长与积分发放失败:', err);
     }
   }
 

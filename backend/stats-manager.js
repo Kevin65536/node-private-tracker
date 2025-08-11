@@ -3,9 +3,11 @@
  * 提供各种统计相关的管理功能
  */
 
-// 加载环境变量
-require('dotenv').config();
+// 加载环境变量（确保使用 backend/.env）
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
+// 延迟加载 models 以保证已加载 .env
 const { sequelize } = require('./models');
 const { updateAllUserStats } = require('./update-user-stats');
 const statsScheduler = require('./utils/statsScheduler');
@@ -188,14 +190,15 @@ async function resetUserStats(userId) {
 
 async function main() {
   try {
+    // help 不需要数据库连接
+    if (command === 'help' || command === undefined) {
+      await showHelp();
+      return;
+    }
+
     await sequelize.authenticate();
     
     switch (command) {
-      case 'help':
-      case undefined:
-        await showHelp();
-        break;
-        
       case 'status':
         await showStatus();
         break;
@@ -258,7 +261,9 @@ async function main() {
     console.error('❌ 执行失败:', error.message);
     process.exit(1);
   } finally {
-    await sequelize.close();
+    if (sequelize) {
+      await sequelize.close();
+    }
   }
 }
 

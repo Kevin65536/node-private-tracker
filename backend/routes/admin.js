@@ -4,6 +4,8 @@ const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const { Op } = require('sequelize');
 const path = require('path');
 const fs = require('fs').promises;
+const pointsConfig = require('../config/points');
+const { PointsLog } = require('../models');
 
 const router = express.Router();
 
@@ -96,6 +98,42 @@ router.post('/torrents/:id/review', authenticateToken, requireAdmin, async (req,
       reviewed_by: req.user.id,
       reviewed_at: new Date()
     });
+
+    // 审核通过后，给上传者一次性奖励（参数化）
+    if (newStatus === 'approved' && torrent.uploader) {
+      try {
+        const { approval } = pointsConfig;
+        const sizeGiB = Math.max(0, (parseFloat(torrent.size) || 0) / (1024 * 1024 * 1024));
+        const sizeBonus = Math.min(approval.maxSizeBonus, approval.sizeLog2Factor * Math.log2(sizeGiB + 1));
+        const totalBonus = Math.round((approval.fixedBonus + sizeBonus) * 100) / 100;
+        if (totalBonus > 0) {
+          const [stats] = await UserStats.findOrCreate({
+            where: { user_id: torrent.uploader.id },
+            defaults: { uploaded: 0, downloaded: 0, bonus_points: 0, seedtime: 0, leechtime: 0, torrents_uploaded: 0, torrents_seeding: 0, torrents_leeching: 0, invitations: 0 }
+          });
+          const current = parseFloat(stats.bonus_points) || 0;
+          const next = current + totalBonus;
+          await stats.update({ bonus_points: next });
+
+          // 记录积分日志
+          try {
+            await PointsLog.create({
+              user_id: torrent.uploader.id,
+              change: totalBonus,
+              reason: 'approval_bonus',
+              balance_after: next,
+              context: { torrent_id: torrent.id, sizeGiB }
+            });
+          } catch (logErr) {
+            console.error('写入审核奖励积分日志失败:', logErr);
+          }
+
+          console.log(`[审核奖励] 向用户 ${torrent.uploader.username} 发放 ${totalBonus} 积分 (种子: ${torrent.name})`);
+        }
+      } catch (awardErr) {
+        console.error('发放审核奖励失败:', awardErr);
+      }
+    }
 
     // 记录审核日志
     console.log(`[审核] ${req.user.username} ${action === 'approve' ? '通过' : '拒绝'}了种子 "${torrent.name}" (ID: ${torrent.id})`);
@@ -224,6 +262,49 @@ router.post('/torrents/batch-review', authenticateToken, requireAdmin, async (re
     });
 
     console.log(`[批量审核] ${req.user.username} ${action === 'approve' ? '通过' : '拒绝'}了 ${affectedCount} 个种子`);
+
+    // 如果是通过，发放一次性审核奖励
+    if (newStatus === 'approved' && affectedCount > 0) {
+      try {
+        const approvedTorrents = await Torrent.findAll({
+          where: { id: torrent_ids, status: 'approved' },
+          include: [{ model: User, as: 'uploader', attributes: ['id', 'username'] }]
+        });
+
+        const { approval } = pointsConfig;
+        for (const t of approvedTorrents) {
+          if (!t.uploader) continue;
+          const sizeGiB = Math.max(0, (parseFloat(t.size) || 0) / (1024 * 1024 * 1024));
+          const sizeBonus = Math.min(approval.maxSizeBonus, approval.sizeLog2Factor * Math.log2(sizeGiB + 1));
+          const totalBonus = Math.round((approval.fixedBonus + sizeBonus) * 100) / 100;
+          if (totalBonus > 0) {
+            const [stats] = await UserStats.findOrCreate({
+              where: { user_id: t.uploader.id },
+              defaults: { uploaded: 0, downloaded: 0, bonus_points: 0, seedtime: 0, leechtime: 0, torrents_uploaded: 0, torrents_seeding: 0, torrents_leeching: 0, invitations: 0 }
+            });
+            const current = parseFloat(stats.bonus_points) || 0;
+            const next = current + totalBonus;
+            await stats.update({ bonus_points: next });
+
+            try {
+              await PointsLog.create({
+                user_id: t.uploader.id,
+                change: totalBonus,
+                reason: 'approval_bonus',
+                balance_after: next,
+                context: { torrent_id: t.id, sizeGiB }
+              });
+            } catch (logErr) {
+              console.error('写入审核奖励积分日志失败:', logErr);
+            }
+
+            console.log(`[审核奖励-批量] 向用户 ${t.uploader.username} 发放 ${totalBonus} 积分 (种子: ${t.name})`);
+          }
+        }
+      } catch (batchAwardErr) {
+        console.error('批量审核奖励发放失败:', batchAwardErr);
+      }
+    }
 
     res.json({
       message: `批量审核成功，${action === 'approve' ? '通过' : '拒绝'}了 ${affectedCount} 个种子`,
@@ -479,36 +560,21 @@ router.get('/announces/recent', authenticateToken, requireAdmin, async (req, res
     const { count, rows: announces } = await AnnounceLog.findAndCountAll({
       limit: parseInt(limit),
       offset,
-      order: [['announced_at', 'DESC']],
+      order: [['created_at', 'DESC']],
       include: [
         {
-          model: User,
-          attributes: ['id', 'username', 'role'],
-          required: false
+          model: Torrent,
+          attributes: ['id', 'name', 'size']
         },
         {
-          model: Torrent,
-          attributes: ['id', 'name'],
-          required: false
+          model: User,
+          attributes: ['id', 'username']
         }
       ]
     });
 
     res.json({
-      announces: announces.map(announce => ({
-        id: announce.id,
-        user: announce.User,
-        torrent: announce.Torrent,
-        event: announce.event,
-        uploaded: announce.uploaded,
-        downloaded: announce.downloaded,
-        left: announce.left,
-        ip: announce.ip,
-        port: announce.port,
-        user_agent: announce.user_agent,
-        response_time: announce.response_time,
-        timestamp: announce.announced_at
-      })),
+      announces,
       pagination: {
         current_page: parseInt(page),
         total_pages: Math.ceil(count / limit),
@@ -517,8 +583,8 @@ router.get('/announces/recent', authenticateToken, requireAdmin, async (req, res
       }
     });
   } catch (error) {
-    console.error('获取announce记录失败:', error);
-    res.status(500).json({ error: '获取announce记录失败' });
+    console.error('获取最近的announce记录失败:', error);
+    res.status(500).json({ error: '获取最近的announce记录失败' });
   }
 });
 
