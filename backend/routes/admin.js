@@ -461,6 +461,27 @@ router.get('/peers/stats', authenticateToken, requireAdmin, async (req, res) => 
       raw: true
     });
 
+    // 获取状态分布统计
+    const statusBreakdown = await Peer.findAll({
+      attributes: [
+        'status',
+        [Peer.sequelize.fn('COUNT', Peer.sequelize.col('id')), 'count']
+      ],
+      group: ['status'],
+      raw: true
+    });
+
+    // 获取活跃用户数（最近24小时有通告的用户）
+    const activeUsersCount = await Peer.count({
+      distinct: true,
+      col: 'user_id',
+      where: {
+        last_announce: {
+          [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) // 24小时前
+        }
+      }
+    });
+
     // 获取种子信息
     const torrentsWithInfoHash = await Torrent.findAll({
       attributes: ['id', 'name', 'size', 'info_hash']
@@ -482,11 +503,16 @@ router.get('/peers/stats', authenticateToken, requireAdmin, async (req, res) => 
       total_torrents: stats.length,
       total_peers: stats.reduce((sum, stat) => sum + parseInt(stat.total_peers || 0), 0),
       total_seeders: stats.reduce((sum, stat) => sum + parseInt(stat.total_seeders || 0), 0),
-      total_leechers: stats.reduce((sum, stat) => sum + parseInt(stat.total_leechers || 0), 0)
+      total_leechers: stats.reduce((sum, stat) => sum + parseInt(stat.total_leechers || 0), 0),
+      active_users: activeUsersCount
     };
 
     res.json({
       summary: totalStats,
+      status_breakdown: statusBreakdown.map(stat => ({
+        status: stat.status,
+        count: parseInt(stat.count || 0)
+      })),
       torrents: stats.map(stat => ({
         info_hash: stat.info_hash,
         torrent: infoHashToTorrent[stat.info_hash] || null,
@@ -535,8 +561,10 @@ router.get('/peers/active', authenticateToken, requireAdmin, async (req, res) =>
         uploaded: peer.uploaded,
         downloaded: peer.downloaded,
         left: peer.left,
-        is_seeder: peer.left === '0',
-        last_announce: peer.updated_at
+        status: peer.status, // 返回状态
+        is_seeder: String(peer.left) === '0',
+        last_announce: peer.last_announce || peer.updated_at, // 使用last_announce更准确
+        user_agent: peer.user_agent // 返回客户端信息
       })),
       pagination: {
         current_page: parseInt(page),
@@ -557,21 +585,29 @@ router.get('/announces/recent', authenticateToken, requireAdmin, async (req, res
     const { page = 1, limit = 100 } = req.query;
     const offset = (page - 1) * limit;
 
-    const { count, rows: announces } = await AnnounceLog.findAndCountAll({
+    const { count, rows } = await AnnounceLog.findAndCountAll({
       limit: parseInt(limit),
       offset,
-      order: [['created_at', 'DESC']],
+      order: [['announced_at', 'DESC']],
       include: [
-        {
-          model: Torrent,
-          attributes: ['id', 'name', 'size']
-        },
-        {
-          model: User,
-          attributes: ['id', 'username']
-        }
+        { model: Torrent, attributes: ['id', 'name', 'size'] },
+        { model: User, attributes: ['id', 'username'] }
       ]
     });
+
+    const announces = rows.map(a => ({
+      id: a.id,
+      user: a.User ? { id: a.User.id, username: a.User.username } : null,
+      torrent: a.Torrent ? { id: a.Torrent.id, name: a.Torrent.name, size: a.Torrent.size } : null,
+      ip: a.ip,
+      port: a.port,
+      event: a.event || 'update',
+      uploaded: a.uploaded,
+      downloaded: a.downloaded,
+      left: a.left,
+      response_time: a.response_time,
+      timestamp: a.announced_at
+    }));
 
     res.json({
       announces,

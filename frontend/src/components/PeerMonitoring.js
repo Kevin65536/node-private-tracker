@@ -117,7 +117,8 @@ const PeerMonitoring = () => {
         leechers: statsData.summary?.total_leechers || 0,
         active_users: statsData.summary?.active_users || 0,
         active_torrents: statsData.summary?.total_torrents || 0,
-        total_peers: statsData.summary?.total_peers || 0
+        total_peers: statsData.summary?.total_peers || 0,
+        status_breakdown: statsData.status_breakdown || []
       });
       
       // 处理announces数据
@@ -366,16 +367,19 @@ const PeerMonitoring = () => {
               </TableCell>
               <TableCell>
                 <Tooltip title={peer.user_agent}>
-                  <Typography variant="body2" sx={{ 
-                    maxWidth: 100, 
-                    overflow: 'hidden', 
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    fontFamily: 'monospace',
-                    fontSize: 11
-                  }}>
-                    {peer.user_agent}
-                  </Typography>
+                  <Box sx={{ width: 220 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontFamily:
+                          "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                        fontSize: 12,
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {peer.user_agent || '-'}
+                    </Typography>
+                  </Box>
                 </Tooltip>
               </TableCell>
             </TableRow>
@@ -543,13 +547,54 @@ const PeerMonitoring = () => {
                     <Typography variant="h6">状态分布</Typography>
                   </AccordionSummary>
                   <AccordionDetails>
-                    {stats.status_breakdown?.map((status) => (
-                      <Box key={status.status} sx={{ mb: 1 }}>
-                        <Typography variant="body2">
-                          {status.status}: {status.count}
-                        </Typography>
-                      </Box>
-                    ))}
+                    {stats.status_breakdown && stats.status_breakdown.length > 0 ? (
+                      stats.status_breakdown.map((status) => {
+                        const getStatusText = (statusValue) => {
+                          switch(statusValue) {
+                            case 'started': return '已开始';
+                            case 'downloading': return '下载中';
+                            case 'seeding': return '做种中';
+                            case 'stopped': return '已停止';
+                            case 'completed': return '已完成';
+                            default: return statusValue;
+                          }
+                        };
+
+                        const getStatusChipColor = (statusValue) => {
+                          switch(statusValue) {
+                            case 'started': return 'primary';
+                            case 'downloading': return 'warning';
+                            case 'seeding': return 'success';
+                            case 'stopped': return 'default';
+                            case 'completed': return 'info';
+                            default: return 'secondary';
+                          }
+                        };
+
+                        return (
+                          <Box key={status.status} sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <Chip 
+                                size="small" 
+                                label={getStatusText(status.status)}
+                                color={getStatusChipColor(status.status)}
+                                sx={{ mr: 2, minWidth: 80 }}
+                              />
+                              <Typography variant="body2" color="text.secondary">
+                                ({status.status})
+                              </Typography>
+                            </Box>
+                            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                              {status.count}
+                            </Typography>
+                          </Box>
+                        );
+                      })
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        暂无状态统计数据
+                      </Typography>
+                    )}
                   </AccordionDetails>
                 </Accordion>
               </Grid>
