@@ -326,39 +326,95 @@ async function handleAnnounce(req, res) {
       const lastReportedUploaded = download.last_reported_uploaded || 0;
       const lastReportedDownloaded = download.last_reported_downloaded || 0;
 
-      // 检测客户端重启（上报值明显小于上次记录）
-      const uploadRestart = reportedUploaded < lastReportedUploaded * 0.9;
-      const downloadRestart = reportedDownloaded < lastReportedDownloaded * 0.9;
-
-      if (uploadRestart || downloadRestart) {
-        console.log(`🔄 检测到客户端重启，用户${user.id}种子${torrent.id}，重置baseline`);
-        // 客户端重启，从当前值开始重新计算
+      // 数据合理性检查：检测异常的历史数据
+      const torrentSizeBytes = parseInt(torrent.size) || 0;
+      const maxReasonableDownload = torrentSizeBytes * 10; // 允许最多10倍种子大小的下载量
+      
+      if (download.downloaded > maxReasonableDownload && maxReasonableDownload > 0) {
+        console.log(`⚠️  检测到异常历史数据，用户${user.id}种子${torrent.id}`);
+        console.log(`   当前累计下载量: ${download.downloaded}, 种子大小: ${torrentSizeBytes}`);
+        console.log(`   重置为客户端会话值: ${reportedDownloaded}`);
+        
+        // 重置异常数据
+        await download.update({
+          uploaded: reportedUploaded,
+          downloaded: reportedDownloaded,
+          last_reported_uploaded: reportedUploaded,
+          last_reported_downloaded: reportedDownloaded
+        });
+        
         actualUploadedDiff = 0;
         actualDownloadedDiff = 0;
       } else {
-        // 正常增量计算
-        actualUploadedDiff = Math.max(0, reportedUploaded - lastReportedUploaded);
-        actualDownloadedDiff = Math.max(0, reportedDownloaded - lastReportedDownloaded);
+        // 改进的重启检测：同时检查数值合理性
+        const uploadRestart = reportedUploaded < lastReportedUploaded * 0.9;
+        const downloadRestart = reportedDownloaded < lastReportedDownloaded * 0.9;
+        
+        // 额外检查：如果 last_reported 值看起来异常巨大，也认为是重启
+        const uploadAbnormal = lastReportedUploaded > torrentSizeBytes * 5 && torrentSizeBytes > 0;
+        const downloadAbnormal = lastReportedDownloaded > torrentSizeBytes * 5 && torrentSizeBytes > 0;
+
+        if (uploadRestart || downloadRestart || uploadAbnormal || downloadAbnormal) {
+          console.log(`🔄 检测到客户端重启或数据异常，用户${user.id}种子${torrent.id}，重置baseline`);
+          if (uploadAbnormal || downloadAbnormal) {
+            console.log(`   原因: 检测到异常的 last_reported 值 (uploaded: ${lastReportedUploaded}, downloaded: ${lastReportedDownloaded})`);
+          }
+          // 客户端重启，从当前值开始重新计算
+          actualUploadedDiff = 0;
+          actualDownloadedDiff = 0;
+        } else {
+          // 正常增量计算
+          actualUploadedDiff = Math.max(0, reportedUploaded - lastReportedUploaded);
+          actualDownloadedDiff = Math.max(0, reportedDownloaded - lastReportedDownloaded);
+        }
       }
 
       // 更新Download记录：累加历史值，更新会话值
-      await download.update({
-        uploaded: download.uploaded + actualUploadedDiff,
-        downloaded: download.downloaded + actualDownloadedDiff,
-        left: leftAmount,
-        status: downloadStatus,
-        last_announce: new Date(),
-        peer_id: peer_id,
-        ip: clientIp,
-        port: clientPort,
-        user_agent: userAgent,
-        last_reported_uploaded: reportedUploaded,
-        last_reported_downloaded: reportedDownloaded
-      });
+      // 防止数据溢出：PostgreSQL bigint 最大值
+      const MAX_BIGINT = 9223372036854775807n;
+      const newUploaded = BigInt(download.uploaded) + BigInt(actualUploadedDiff);
+      const newDownloaded = BigInt(download.downloaded) + BigInt(actualDownloadedDiff);
+      
+      // 检查是否会溢出，如果溢出则重置为当前会话值
+      const finalUploaded = newUploaded > MAX_BIGINT ? BigInt(reportedUploaded) : newUploaded;
+      const finalDownloaded = newDownloaded > MAX_BIGINT ? BigInt(reportedDownloaded) : newDownloaded;
+      
+      if (newUploaded > MAX_BIGINT || newDownloaded > MAX_BIGINT) {
+        console.log(`⚠️  检测到数据溢出，用户${user.id}种子${torrent.id}，重置累计值`);
+        console.log(`   原值: uploaded=${download.uploaded}, downloaded=${download.downloaded}`);
+        console.log(`   重置为会话值: uploaded=${reportedUploaded}, downloaded=${reportedDownloaded}`);
+      }
+      
+      // 分两步更新：先更新 last_reported 基准值，再更新累计值
+      // 这样即使累计值更新失败，基准值也已更新，避免下次重复计算
+      try {
+        await download.update({
+          last_reported_uploaded: reportedUploaded,
+          last_reported_downloaded: reportedDownloaded,
+          last_announce: new Date(),
+          peer_id: peer_id,
+          ip: clientIp,
+          port: clientPort,
+          user_agent: userAgent
+        });
+        
+        // 然后更新累计值和状态
+        await download.update({
+          uploaded: Number(finalUploaded),
+          downloaded: Number(finalDownloaded),
+          left: leftAmount,
+          status: downloadStatus
+        });
+      } catch (updateError) {
+        console.error(`更新Download记录失败，用户${user.id}种子${torrent.id}:`, updateError.message);
+        // 如果累计值更新失败，至少基准值已更新，不会重复计算增量
+        throw updateError;
+      }
     } else {
-      // 新记录，使用客户端上报值作为初始累计值
-      actualUploadedDiff = parseInt(uploaded);
-      actualDownloadedDiff = parseInt(downloaded);
+      // 新记录，初始值已在 defaults 中设置，增量为 0
+      actualUploadedDiff = 0;
+      actualDownloadedDiff = 0;
+      console.log(`📝 创建新的下载记录，用户${user.id}种子${torrent.id}，初始值: uploaded=${uploaded}, downloaded=${downloaded}`);
     }
 
     // 更新UserStats（使用实际增量）
