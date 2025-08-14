@@ -449,8 +449,22 @@ router.post('/torrents/batch-delete', authenticateToken, requireAdmin, async (re
 // 获取peer统计信息
 router.get('/peers/stats', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    // 获取peer统计按info_hash分组
+    // 定义活跃时间窗口：最近30分钟内有announce的peer才算活跃
+    const activeTimeWindow = new Date(Date.now() - 30 * 60 * 1000); // 30分钟前
+    
+    // 活跃条件：1) 最近30分钟内有announce 2) 状态不是stopped
+    const activeConditions = {
+      last_announce: {
+        [Op.gte]: activeTimeWindow
+      },
+      status: {
+        [Op.ne]: 'stopped'
+      }
+    };
+
+    // 获取活跃peer统计按info_hash分组
     const stats = await Peer.findAll({
+      where: activeConditions,
       attributes: [
         'info_hash',
         [Peer.sequelize.fn('COUNT', Peer.sequelize.col('Peer.id')), 'total_peers'],
@@ -461,8 +475,9 @@ router.get('/peers/stats', authenticateToken, requireAdmin, async (req, res) => 
       raw: true
     });
 
-    // 获取状态分布统计
+    // 获取活跃peer的状态分布统计
     const statusBreakdown = await Peer.findAll({
+      where: activeConditions,
       attributes: [
         'status',
         [Peer.sequelize.fn('COUNT', Peer.sequelize.col('id')), 'count']
@@ -471,15 +486,11 @@ router.get('/peers/stats', authenticateToken, requireAdmin, async (req, res) => 
       raw: true
     });
 
-    // 获取活跃用户数（最近24小时有通告的用户）
+    // 获取活跃用户数（最近30分钟有通告的用户）
     const activeUsersCount = await Peer.count({
       distinct: true,
       col: 'user_id',
-      where: {
-        last_announce: {
-          [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) // 24小时前
-        }
-      }
+      where: activeConditions
     });
 
     // 获取种子信息
@@ -533,10 +544,24 @@ router.get('/peers/active', authenticateToken, requireAdmin, async (req, res) =>
     const { page = 1, limit = 50 } = req.query;
     const offset = (page - 1) * limit;
 
+    // 定义活跃时间窗口：最近30分钟内有announce的peer才算活跃
+    const activeTimeWindow = new Date(Date.now() - 30 * 60 * 1000); // 30分钟前
+    
+    // 活跃条件：1) 最近30分钟内有announce 2) 状态不是stopped
+    const activeConditions = {
+      last_announce: {
+        [require('sequelize').Op.gte]: activeTimeWindow
+      },
+      status: {
+        [require('sequelize').Op.ne]: 'stopped'
+      }
+    };
+
     const peers = await Peer.findAll({
+      where: activeConditions,
       limit: parseInt(limit),
       offset,
-      order: [['updated_at', 'DESC']],
+      order: [['last_announce', 'DESC']], // 改为按最后通告时间排序
       include: [
         {
           model: User,
@@ -549,7 +574,7 @@ router.get('/peers/active', authenticateToken, requireAdmin, async (req, res) =>
       ]
     });
 
-    const total = await Peer.count();
+    const total = await Peer.count({ where: activeConditions });
 
     res.json({
       peers: peers.map(peer => ({

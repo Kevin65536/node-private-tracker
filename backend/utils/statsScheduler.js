@@ -6,7 +6,8 @@ const {
   Download, 
   Torrent, 
   AnnounceLog,
-  PointsLog 
+  PointsLog,
+  Peer
 } = require('../models');
 const pointsConfig = require('../config/points');
 
@@ -42,9 +43,10 @@ class StatsScheduler {
     //   await this.updateAllUserStats();
     // }, { scheduled: false }));
 
-    // 每周清理旧的announce日志
+    // 每周清理旧的announce日志和过期peer记录
     this.jobs.set('cleanupLogs', cron.schedule('0 3 * * 0', async () => {
       await this.cleanupOldLogs();
+      await this.cleanupExpiredPeers();
     }, { scheduled: false }));
 
     // 启动所有任务
@@ -271,6 +273,33 @@ class StatsScheduler {
 
     } catch (error) {
       console.error('清理announce日志失败:', error);
+    }
+  }
+
+  /**
+   * 清理过期的peer记录
+   */
+  async cleanupExpiredPeers() {
+    try {
+      console.log('开始清理过期的peer记录...');
+      const startTime = Date.now();
+
+      // 删除24小时前未活动的peer记录（比内存清理更宽松的时间窗口）
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      
+      const deleteCount = await Peer.destroy({
+        where: {
+          last_announce: {
+            [Sequelize.Op.lt]: twentyFourHoursAgo
+          }
+        }
+      });
+
+      const duration = Date.now() - startTime;
+      console.log(`✅ 清理过期peer记录完成，删除 ${deleteCount} 条记录，耗时: ${duration}ms`);
+
+    } catch (error) {
+      console.error('清理过期peer记录失败:', error);
     }
   }
 
