@@ -1,6 +1,7 @@
 /**
  * 前端网络配置工具
  * 用于自动检测和配置API地址
+ * 更新时间：2025-08-28 20:47 - 强制重新编译
  */
 
 /**
@@ -61,13 +62,33 @@ export function getApiBaseUrl() {
   let apiUrl;
   
   if (networkInfo.isLocalhost) {
-    // 本地开发环境
-    apiUrl = 'http://localhost:3001/api';
-    console.log('🏠 检测到本地环境，使用:', apiUrl);
+    // 检查是否通过nginx代理访问（端口80或443，或者没有指定端口）
+    const currentPort = window.location.port;
+    const isNginxPort = !currentPort || currentPort === '80' || currentPort === '443';
+    
+    if (isNginxPort) {
+      // 通过nginx代理访问，使用相对路径
+      apiUrl = '/api';  // 使用相对路径，让nginx处理代理
+      console.log('🔄 检测到nginx代理环境，使用代理API:', apiUrl);
+    } else {
+      // 直接访问前端开发服务器
+      apiUrl = 'http://localhost:3001/api';
+      console.log('🏠 检测到前端开发环境，使用直连:', apiUrl);
+    }
   } else {
-    // 局域网或其他环境，使用当前hostname
-    apiUrl = `http://${networkInfo.hostname}:3001/api`;
-    console.log('🌐 检测到网络环境，自动构建:', apiUrl);
+    // 局域网或其他环境
+    const currentPort = window.location.port;
+    const isNginxPort = !currentPort || currentPort === '80' || currentPort === '443';
+    
+    if (isNginxPort) {
+      // 可能通过nginx代理
+      apiUrl = '/api';  // 使用相对路径，让nginx处理代理
+      console.log('🌐 检测到代理环境，使用代理API:', apiUrl);
+    } else {
+      // 直接访问，使用3001端口
+      apiUrl = `http://${networkInfo.hostname}:3001/api`;
+      console.log('🌐 检测到直连环境，自动构建:', apiUrl);
+    }
   }
   
   return apiUrl;
@@ -113,11 +134,29 @@ export async function discoverApiUrl() {
   
   // 构建候选URL列表
   if (networkInfo.isLocalhost) {
-    candidates.push('http://localhost:3001/api');
-    candidates.push('http://127.0.0.1:3001/api');
+    const currentPort = window.location.port;
+    const isNginxPort = !currentPort || currentPort === '80' || currentPort === '443';
+    
+    if (isNginxPort) {
+      candidates.push('/api'); // nginx代理 - 使用相对路径
+      candidates.push('http://localhost:3001/api'); // 直连备选
+    } else {
+      candidates.push('http://localhost:3001/api'); // 开发服务器
+      candidates.push('http://127.0.0.1:3001/api');
+      candidates.push(`${window.location.protocol}//${window.location.hostname}/api`); // 代理备选
+    }
   } else {
-    candidates.push(`http://${networkInfo.hostname}:3001/api`);
-    candidates.push('http://localhost:3001/api'); // 备选
+    // 网络环境，优先尝试代理
+    const currentPort = window.location.port;
+    const isNginxPort = !currentPort || currentPort === '80' || currentPort === '443';
+    
+    if (isNginxPort) {
+      candidates.push('/api'); // 代理 - 使用相对路径
+      candidates.push(`http://${networkInfo.hostname}:3001/api`); // 直连备选
+    } else {
+      candidates.push(`http://${networkInfo.hostname}:3001/api`); // 直连
+      candidates.push(`${window.location.protocol}//${window.location.hostname}/api`); // 代理备选
+    }
   }
   
   // 如果有环境变量，也加入测试

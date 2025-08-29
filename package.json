@@ -14,6 +14,12 @@
     "install:backend": "cd backend && npm install",
     "install:frontend": "cd frontend && npm install",
     "build": "cd frontend && npm run build",
+    "nginx:setup": "cd nginx && setup-nginx.bat",
+    "nginx:start": "cd nginx && manage-nginx.bat start",
+    "nginx:stop": "cd nginx && manage-nginx.bat stop",
+    "nginx:restart": "cd nginx && manage-nginx.bat restart",
+    "nginx:status": "cd nginx && manage-nginx.bat status",
+    "start:prod": "concurrently \"npm run start:backend\" \"npm run nginx:start\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
