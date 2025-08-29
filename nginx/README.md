@@ -8,8 +8,10 @@
 |--------|------|------|
 | `pt-site.conf` | 开发环境Nginx配置 | 代理到React开发服务器(3000) |
 | `pt-site-production.conf` | 生产环境Nginx配置 | 服务静态构建文件 |
+| `configure-paths.bat` | 路径配置脚本(Windows) | 自动设置动态路径 |
+| `configure-paths.sh` | 路径配置脚本(Linux/macOS) | 自动设置动态路径 |
 | `setup-nginx.bat` | Nginx安装配置脚本 | 一键安装和配置 |
-| `manage-nginx.bat` | Nginx管理脚本 | 启动/停止/重启服务 |
+| `manage-nginx-project.bat` | Nginx管理脚本 | 启动/停止/重启服务 |
 | `check-deployment.bat` | 部署检查脚本 | 验证配置是否正确 |
 
 ## 🚀 快速开始
@@ -48,29 +50,69 @@ manage-nginx.bat start
 
 ## 🔧 管理命令
 
+### Windows环境 - Nginx管理
 ```batch
 # 查看服务状态
-manage-nginx.bat status
+manage-nginx-project.bat status
 
 # 启动Nginx
-manage-nginx.bat start
+manage-nginx-project.bat start
 
 # 停止Nginx
-manage-nginx.bat stop
+manage-nginx-project.bat stop
 
 # 重启Nginx
-manage-nginx.bat restart
+manage-nginx-project.bat restart
 
 # 重新加载配置
-manage-nginx.bat reload
+manage-nginx-project.bat reload
 
 # 检查配置语法
-manage-nginx.bat test
+manage-nginx-project.bat test
+
+# 部署开发环境配置
+manage-nginx-project.bat deploy
+
+# 部署生产环境配置
+manage-nginx-project.bat production
 
 # 查看日志
-manage-nginx.bat logs          # 访问日志
-manage-nginx.bat logs error    # 错误日志
+manage-nginx-project.bat logs          # 访问日志
+manage-nginx-project.bat logs error    # 错误日志
 ```
+
+### 路径配置命令
+```batch
+# Windows环境
+nginx\configure-paths.bat detect      # 检测当前路径配置
+nginx\configure-paths.bat apply       # 应用动态路径到开发配置
+nginx\configure-paths.bat production  # 设置生产环境配置并应用路径
+nginx\configure-paths.bat restore     # 恢复备份配置
+```
+
+```bash
+# Linux/macOS环境
+./nginx/configure-paths.sh detect      # 检测当前路径配置
+./nginx/configure-paths.sh apply       # 应用动态路径到开发配置
+./nginx/configure-paths.sh production  # 设置生产环境配置并应用路径
+./nginx/configure-paths.sh restore     # 恢复备份配置
+```
+
+## 🛠️ 路径配置说明
+
+新版本自动解决硬编码路径问题：
+
+### 自动路径检测
+脚本会自动检测项目根目录，并替换配置中的硬编码路径：
+- ✅ 自动检测项目根目录
+- ✅ 动态设置前端构建路径
+- ✅ 动态设置后端上传路径
+- ✅ 保持日志路径配置
+
+### 使用方法
+1. **开发环境**: 运行 `configure-paths.bat apply` 应用动态路径
+2. **生产环境**: 运行 `configure-paths.bat production` 切换到生产配置并设置路径
+3. **路径检查**: 运行 `configure-paths.bat detect` 查看当前路径配置
 
 ## 🏗️ 架构说明
 
@@ -172,14 +214,13 @@ tasklist | find "nginx.exe"
 
 ### 从开发环境切换到生产环境
 1. 构建前端: `cd frontend && npm run build`
-2. 复制生产配置: `copy pt-site-production.conf pt-site.conf`
-3. 修改文件路径为实际路径
-4. 重新加载: `manage-nginx.bat reload`
+2. 部署生产环境配置: `manage-nginx-project.bat production`
+3. 重新启动: `manage-nginx-project.bat restart`
 
 ### 更新配置
 1. 修改配置文件
-2. 测试语法: `manage-nginx.bat test`
-3. 重新加载: `manage-nginx.bat reload`
+2. 测试语法: `manage-nginx-project.bat test`
+3. 重新加载: `manage-nginx-project.bat reload`
 
 ## 🆘 故障排除
 

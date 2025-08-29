@@ -149,12 +149,26 @@ echo "- 3000 (前端)"
 echo "- 3001 (后端/API/Tracker)"
 echo "- 5432 (PostgreSQL，如果允许远程连接)"
 
-# 7. 启动提示
+# 7. Nginx配置 (如果存在nginx目录)
+if [ -d "nginx" ] && [ -f "nginx/configure-paths.sh" ]; then
+    log_info "配置Nginx路径..."
+    cd nginx
+    chmod +x configure-paths.sh
+    ./configure-paths.sh apply
+    log_success "Nginx路径配置完成"
+    cd ..
+    
+    log_info "Nginx部署提示:"
+    echo "- 开发环境: cd nginx && ./configure-paths.sh apply"
+    echo "- 生产环境: cd nginx && ./configure-paths.sh production"
+fi
+
+# 8. 启动提示
 log_info "启动服务:"
 echo "后端: cd backend && npm start"
 echo "前端: cd frontend && npm start"
 
-# 8. 验证链接
+# 9. 验证链接
 log_info "部署完成后请访问以下链接验证:"
 echo "前端: http://$TARGET_IP:3000"
 echo "API: http://$TARGET_IP:3001/health"
