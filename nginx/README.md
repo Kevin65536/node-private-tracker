@@ -254,6 +254,35 @@ cd backend && npm restart
 - 确保以管理员身份运行安装脚本
 - 检查文件夹权限设置
 
+#### 5. 路径配置问题
+```bash
+# 检查当前路径配置
+./nginx/configure-paths.sh detect
+
+# 恢复备份配置
+./nginx/configure-paths.sh restore
+
+# 重新应用路径配置
+./nginx/configure-paths.sh apply
+```
+
+#### 6. 硬编码路径问题
+如果遇到路径相关错误：
+1. 检查项目目录结构是否完整
+2. 确认已运行路径配置脚本
+3. 验证前端已构建（生产环境）
+4. 检查nginx配置文件路径是否正确
+
+```batch
+# Windows环境
+nginx\configure-paths.bat detect
+nginx\configure-paths.bat apply
+
+# Linux/macOS环境  
+./nginx/configure-paths.sh detect
+./nginx/configure-paths.sh apply
+```
+
 ### 联系支持
 如遇到问题，请检查：
 1. 错误日志文件
