@@ -125,7 +125,27 @@ netsh advfirewall firewall add rule name="PT-Site-Frontend" dir=in action=allow 
 netsh advfirewall firewall add rule name="PT-Site-Backend" dir=in action=allow protocol=TCP localport=3001 >nul 2>&1
 echo [SUCCESS] 防火墙规则已添加
 
-:: 6. 数据库初始化提示
+:: 6. Nginx配置 (如果存在nginx目录)
+if exist "nginx" (
+    if exist "nginx\configure-paths.bat" (
+        echo [INFO] 配置Nginx路径...
+        cd nginx
+        call configure-paths.bat apply
+        if %errorlevel% equ 0 (
+            echo [SUCCESS] Nginx路径配置完成
+        ) else (
+            echo [WARNING] Nginx路径配置失败，请手动执行
+        )
+        cd ..
+        
+        echo.
+        echo [INFO] Nginx部署提示:
+        echo - 开发环境: cd nginx ^&^& configure-paths.bat apply
+        echo - 生产环境: cd nginx ^&^& configure-paths.bat production
+    )
+)
+
+:: 7. 数据库初始化提示
 echo.
 echo [INFO] 数据库初始化提示:
 echo 请手动执行以下步骤:
@@ -134,13 +154,13 @@ echo 2. 创建数据库: createdb -U postgres pt_database
 echo 3. 如果有备份文件，导入数据: psql -U postgres -d pt_database ^< backup.sql
 echo 4. 运行初始化脚本: cd backend ^&^& node init-db.js
 
-:: 7. 启动提示
+:: 8. 启动提示
 echo.
 echo [INFO] 启动服务:
 echo 后端: cd backend ^&^& npm start
 echo 前端: cd frontend ^&^& npm start
 
-:: 8. 验证链接
+:: 9. 验证链接
 echo.
 echo [INFO] 部署完成后请访问以下链接验证:
 echo 前端: http://%TARGET_IP%:3000

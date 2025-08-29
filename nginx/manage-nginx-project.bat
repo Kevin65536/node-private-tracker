@@ -22,6 +22,7 @@ if "%1"=="restart" goto :restart_nginx
 if "%1"=="reload" goto :reload_nginx
 if "%1"=="test" goto :test_config
 if "%1"=="deploy" goto :deploy_config
+if "%1"=="production" goto :deploy_production
 if "%1"=="logs" goto :show_logs
 
 echo [ERROR] 未知的操作: %1
@@ -178,7 +179,28 @@ goto :end
 
 :deploy_config
 echo [INFO] 部署项目配置文件到nginx目录...
+:: 首先应用动态路径配置
+call "%~dp0configure-paths.bat" apply
+if %errorlevel% neq 0 (
+    echo [ERROR] 路径配置应用失败
+    goto :end
+)
 call :deploy_config_internal
+goto :end
+
+:deploy_production
+echo [INFO] 部署生产环境配置...
+echo [WARNING] 这将切换到生产环境配置，请确保已构建前端！
+pause
+:: 应用生产环境路径配置
+call "%~dp0configure-paths.bat" production
+if %errorlevel% neq 0 (
+    echo [ERROR] 生产环境配置失败
+    goto :end
+)
+call :deploy_config_internal
+echo [SUCCESS] 生产环境部署完成
+echo [INFO] 请运行以下命令重启nginx: %0 restart
 goto :end
 
 :deploy_config_silent
@@ -303,13 +325,15 @@ echo   stop            停止Nginx服务
 echo   restart         重启Nginx服务
 echo   reload          重新加载配置文件
 echo   test            检查配置文件语法
-echo   deploy          部署项目配置到nginx目录
+echo   deploy          部署开发环境配置到nginx目录
+echo   production      部署生产环境配置到nginx目录
 echo   logs [type]     显示日志 (access/error)
 echo   help            显示此帮助信息
 echo.
 echo 示例:
 echo   "%~nx0" status       # 查看服务状态
-echo   "%~nx0" deploy       # 部署项目配置文件
+echo   "%~nx0" deploy       # 部署开发环境配置
+echo   "%~nx0" production   # 部署生产环境配置
 echo   "%~nx0" start        # 启动Nginx
 echo   "%~nx0" test         # 检查配置语法
 echo   "%~nx0" logs error   # 查看错误日志
