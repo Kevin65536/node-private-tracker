@@ -8,6 +8,14 @@ REM 创建SSL目录
 if not exist "C:\nginx\ssl" mkdir "C:\nginx\ssl"
 cd /d "C:\nginx\ssl"
 
+REM 备份现有证书（如果存在）
+if exist pt.local.crt (
+    echo 发现现有证书，正在备份...
+    copy pt.local.crt pt.local.crt.backup_%date:~0,4%%date:~5,2%%date:~8,2%_%time:~0,2%%time:~3,2%%time:~6,2%
+    copy pt.local.key pt.local.key.backup_%date:~0,4%%date:~5,2%%date:~8,2%_%time:~0,2%%time:~3,2%%time:~6,2%
+    echo 备份完成！
+)
+
 REM 创建OpenSSL配置文件
 echo [req] > pt.conf
 echo distinguished_name = req_distinguished_name >> pt.conf
@@ -34,6 +42,7 @@ echo DNS.2 = localhost >> pt.conf
 echo DNS.3 = *.local >> pt.conf
 echo IP.1 = 127.0.0.1 >> pt.conf
 echo IP.2 = ::1 >> pt.conf
+echo IP.3 = 172.21.174.6 >> pt.conf
 
 REM 生成私钥（2048位RSA）
 openssl genpkey -algorithm RSA -out pt.local.key -aes256 -pass pass:pt123456
@@ -70,6 +79,7 @@ echo   - localhost
 echo   - *.local
 echo   - 127.0.0.1
 echo   - ::1
+echo   - 172.21.174.6
 echo.
 echo 证书信息：
 echo   有效期：2年
@@ -89,5 +99,17 @@ openssl x509 -in pt.local.crt -text -noout | findstr "Subject:\|Not Before:\|Not
 
 echo.
 echo 证书生成完成！现在可以使用HTTPS访问PT站了。
+echo.
+echo 重要提示：
+echo 1. 请重启Nginx服务以加载新证书
+echo 2. 现在支持通过以下方式访问：
+echo    - https://pt.local (需要在hosts文件中配置)
+echo    - https://172.21.174.6 (直接IP访问)
+echo    - https://localhost (本地访问)
+echo 3. 如果仍有SSL错误，请清除浏览器缓存
+echo.
+echo 要重启Nginx，请运行：
+echo   cd C:\nginx
+echo   nginx.exe -s reload
 echo.
 pause
