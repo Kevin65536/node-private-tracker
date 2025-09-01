@@ -70,10 +70,14 @@ goto :end
 :start_nginx
 echo [INFO] 启动Nginx服务...
 
-tasklist | find "nginx.exe" >nul
-if %errorlevel% equ 0 (
-    echo [WARNING] Nginx已在运行
-    goto :end
+:: 检查nginx进程数量
+for /f %%i in ('tasklist /fi "imagename eq nginx.exe" 2^>nul ^| find /c "nginx.exe"') do set nginx_count=%%i
+
+if !nginx_count! gtr 0 (
+    echo [WARNING] 发现 !nginx_count! 个Nginx进程正在运行
+    echo [INFO] 停止现有进程后重新启动...
+    call :stop_nginx
+    timeout /t 2 >nul
 )
 
 if not exist "%NGINX_EXE%" (
@@ -84,8 +88,12 @@ if not exist "%NGINX_EXE%" (
 :: 确保配置文件已部署
 call :deploy_config_silent
 
-:: 从nginx安装目录启动
+:: 切换到nginx安装目录并启动nginx
 cd /d "%NGINX_DIR%"
+echo [INFO] 从目录启动: %NGINX_DIR%
+echo [INFO] 使用配置文件: %NGINX_DIR%\conf\nginx.conf
+
+:: 启动nginx
 start "" "%NGINX_EXE%"
 timeout /t 3 >nul
 
@@ -137,7 +145,9 @@ if %errorlevel% neq 0 (
 :: 确保配置文件已部署
 call :deploy_config_silent
 
+:: 切换到nginx目录并重新加载配置
 cd /d "%NGINX_DIR%"
+echo [INFO] 从目录重新加载: %NGINX_DIR%
 "%NGINX_EXE%" -s reload
 if %errorlevel% equ 0 (
     echo [SUCCESS] 配置重新加载成功
@@ -148,27 +158,26 @@ if %errorlevel% equ 0 (
 goto :end
 
 :test_config
-echo [INFO] 检查项目内配置文件语法...
+echo [INFO] 检查项目内nginx.conf配置文件语法...
 
 if not exist "%NGINX_EXE%" (
     echo [ERROR] Nginx未安装
     goto :end
 )
 
-if not exist "%PROJECT_NGINX_CONF%" (
-    echo [ERROR] 项目配置文件不存在: %PROJECT_NGINX_CONF%
+if not exist "%MAIN_NGINX_CONF%" (
+    echo [ERROR] 项目内nginx.conf文件不存在: %MAIN_NGINX_CONF%
+    echo [INFO] 请确保项目nginx目录下有nginx.conf文件
     goto :end
 )
 
-if not exist "%MAIN_NGINX_CONF%" (
-    echo [ERROR] 主配置文件不存在: %MAIN_NGINX_CONF%
-    echo 请运行: %0 deploy
-    goto :end
-)
+:: 先部署配置文件
+call :deploy_config_silent
 
 :: 从nginx目录测试配置
 cd /d "%NGINX_DIR%"
-"%NGINX_EXE%" -t -c "%MAIN_NGINX_CONF%"
+echo [INFO] 测试配置文件: %NGINX_DIR%\conf\nginx.conf
+"%NGINX_EXE%" -t
 if %errorlevel% equ 0 (
     echo [SUCCESS] 配置文件语法正确
 ) else (
@@ -186,69 +195,14 @@ call :deploy_config_internal >nul 2>&1
 goto :eof
 
 :deploy_config_internal
-if not exist "%PROJECT_NGINX_CONF%" (
-    echo [ERROR] 项目配置文件不存在: %PROJECT_NGINX_CONF%
+:: 检查项目内的nginx.conf是否存在
+if not exist "%MAIN_NGINX_CONF%" (
+    echo [ERROR] 项目内nginx.conf文件不存在: %MAIN_NGINX_CONF%
+    echo [INFO] 请确保项目目录下的nginx子目录中有nginx.conf文件
     exit /b 1
 )
 
-:: 创建完整的nginx.conf文件
-echo # PT站 Nginx 主配置文件 - 项目内生成 > "%MAIN_NGINX_CONF%"
-echo # 生成时间: %date% %time% >> "%MAIN_NGINX_CONF%"
-echo. >> "%MAIN_NGINX_CONF%"
-echo worker_processes auto; >> "%MAIN_NGINX_CONF%"
-echo error_log "C:/nginx/logs/error.log"; >> "%MAIN_NGINX_CONF%"
-echo pid "C:/nginx/logs/nginx.pid"; >> "%MAIN_NGINX_CONF%"
-echo. >> "%MAIN_NGINX_CONF%"
-echo events { >> "%MAIN_NGINX_CONF%"
-echo     worker_connections 1024; >> "%MAIN_NGINX_CONF%"
-echo } >> "%MAIN_NGINX_CONF%"
-echo. >> "%MAIN_NGINX_CONF%"
-echo http { >> "%MAIN_NGINX_CONF%"
-echo     include       "C:/nginx/conf/mime.types"; >> "%MAIN_NGINX_CONF%"
-echo     default_type  application/octet-stream; >> "%MAIN_NGINX_CONF%"
-echo. >> "%MAIN_NGINX_CONF%"
-echo     # 日志格式 >> "%MAIN_NGINX_CONF%"
-echo     log_format main '$remote_addr - $remote_user [$time_local] "$request" ' >> "%MAIN_NGINX_CONF%"
-echo                     '$status $body_bytes_sent "$http_referer" ' >> "%MAIN_NGINX_CONF%"
-echo                     '"$http_user_agent" "$http_x_forwarded_for"'; >> "%MAIN_NGINX_CONF%"
-echo. >> "%MAIN_NGINX_CONF%"
-echo     # 性能优化 >> "%MAIN_NGINX_CONF%"
-echo     sendfile on; >> "%MAIN_NGINX_CONF%"
-echo     tcp_nopush on; >> "%MAIN_NGINX_CONF%"
-echo     tcp_nodelay on; >> "%MAIN_NGINX_CONF%"
-echo     keepalive_timeout 65; >> "%MAIN_NGINX_CONF%"
-echo     types_hash_max_size 2048; >> "%MAIN_NGINX_CONF%"
-echo. >> "%MAIN_NGINX_CONF%"
-echo     # 临时文件路径 >> "%MAIN_NGINX_CONF%"
-echo     client_body_temp_path "C:/nginx/temp/client_body_temp"; >> "%MAIN_NGINX_CONF%"
-echo     proxy_temp_path "C:/nginx/temp/proxy_temp"; >> "%MAIN_NGINX_CONF%"
-echo     fastcgi_temp_path "C:/nginx/temp/fastcgi_temp"; >> "%MAIN_NGINX_CONF%"
-echo     uwsgi_temp_path "C:/nginx/temp/uwsgi_temp"; >> "%MAIN_NGINX_CONF%"
-echo     scgi_temp_path "C:/nginx/temp/scgi_temp"; >> "%MAIN_NGINX_CONF%"
-echo. >> "%MAIN_NGINX_CONF%"
-echo     # Gzip压缩 >> "%MAIN_NGINX_CONF%"
-echo     gzip on; >> "%MAIN_NGINX_CONF%"
-echo     gzip_vary on; >> "%MAIN_NGINX_CONF%"
-echo     gzip_min_length 1024; >> "%MAIN_NGINX_CONF%"
-echo     gzip_proxied any; >> "%MAIN_NGINX_CONF%"
-echo     gzip_comp_level 6; >> "%MAIN_NGINX_CONF%"
-echo     gzip_types >> "%MAIN_NGINX_CONF%"
-echo         text/plain >> "%MAIN_NGINX_CONF%"
-echo         text/css >> "%MAIN_NGINX_CONF%"
-echo         text/xml >> "%MAIN_NGINX_CONF%"
-echo         text/javascript >> "%MAIN_NGINX_CONF%"
-echo         application/json >> "%MAIN_NGINX_CONF%"
-echo         application/javascript >> "%MAIN_NGINX_CONF%"
-echo         application/xml+rss >> "%MAIN_NGINX_CONF%"
-echo         application/atom+xml >> "%MAIN_NGINX_CONF%"
-echo         image/svg+xml; >> "%MAIN_NGINX_CONF%"
-echo. >> "%MAIN_NGINX_CONF%"
-
-:: 包含PT站配置
-type "%PROJECT_NGINX_CONF%" >> "%MAIN_NGINX_CONF%"
-echo } >> "%MAIN_NGINX_CONF%"
-
-:: 复制到nginx配置目录
+:: 直接使用项目内的nginx.conf文件，复制到nginx安装目录
 copy "%MAIN_NGINX_CONF%" "%NGINX_DIR%\conf\nginx.conf" >nul
 if %errorlevel% equ 0 (
     echo [SUCCESS] 配置文件已部署到: %NGINX_DIR%\conf\nginx.conf
@@ -257,7 +211,7 @@ if %errorlevel% equ 0 (
     exit /b 1
 )
 
-:: 创建临时目录
+:: 创建必要的临时目录
 if not exist "%NGINX_DIR%\temp" mkdir "%NGINX_DIR%\temp"
 if not exist "%NGINX_DIR%\temp\client_body_temp" mkdir "%NGINX_DIR%\temp\client_body_temp"
 if not exist "%NGINX_DIR%\temp\proxy_temp" mkdir "%NGINX_DIR%\temp\proxy_temp"
