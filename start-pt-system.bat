@@ -131,16 +131,89 @@ cd /d "%~dp0"
 REM 等待前端启动
 timeout /t 5 >NUL
 
-REM 启动Nginx HTTPS服务
-echo [3/3] 启动Nginx HTTPS服务...
-cd /d "%~dp0nginx"
+REM 部署检查和启动Nginx HTTPS服务
+echo [3/3] 部署检查并启动Nginx HTTPS服务...
+
+echo 正在进行部署检查...
+set "DEPLOY_SUCCESS=0"
+set "DEPLOY_WARNING=0"
+set "DEPLOY_ERROR=0"
+
+REM 检查Nginx安装
 if exist "C:\nginx\nginx.exe" (
-    call start-https-server.bat
+    echo ✓ Nginx已安装
+    set /a DEPLOY_SUCCESS+=1
 ) else (
-    echo 警告：未找到Nginx安装，跳过HTTPS服务启动
-    echo 请手动安装Nginx到C:\nginx目录
+    echo ✗ Nginx未安装
+    set /a DEPLOY_ERROR+=1
+    goto :skip_nginx_start
+)
+
+REM 检查配置文件语法
+echo 正在检查配置文件语法...
+cd /d "C:\nginx"
+nginx.exe -t 2>&1
+if !errorlevel! equ 0 (
+    echo ✓ 配置语法正确
+    set /a DEPLOY_SUCCESS+=1
+) else (
+    echo ✗ 配置语法错误
+    echo.
+    echo === 详细错误信息 ===
+    nginx.exe -t
+    echo === 错误信息结束 ===
+    echo.
+    set /a DEPLOY_ERROR+=1
 )
 cd /d "%~dp0"
+
+REM 检查上传目录
+if exist "backend\uploads" (
+    echo ✓ 上传目录存在
+    set /a DEPLOY_SUCCESS+=1
+) else (
+    echo ⚠ 上传目录不存在，正在创建...
+    mkdir "backend\uploads"
+    set /a DEPLOY_WARNING+=1
+)
+
+REM 检查SSL证书（可选）
+if exist "C:\nginx\ssl\pt.local.crt" (
+    echo ✓ SSL证书存在
+    set /a DEPLOY_SUCCESS+=1
+) else (
+    echo ⚠ SSL证书不存在（将使用HTTP模式）
+    set /a DEPLOY_WARNING+=1
+)
+
+REM 启动Nginx服务
+if !DEPLOY_ERROR! equ 0 (
+    echo 正在启动Nginx服务...
+    cd /d "%~dp0nginx"
+    call manage-nginx-project.bat start >nul 2>&1
+    cd /d "%~dp0"
+    
+    REM 验证Nginx启动状态
+    timeout /t 2 >nul
+    tasklist /FI "IMAGENAME eq nginx.exe" 2>NUL | find /I /N "nginx.exe">NUL
+    if "!ERRORLEVEL!"=="0" (
+        echo ✓ Nginx服务启动成功
+    ) else (
+        echo ✗ Nginx服务启动失败
+        set /a DEPLOY_ERROR+=1
+    )
+) else (
+    :skip_nginx_start
+    echo ✗ 由于检查失败，跳过Nginx服务启动
+    echo.
+    echo === 故障排除建议 ===
+    echo 1. 检查配置文件：C:\nginx\conf\nginx.conf
+    echo 2. 检查站点配置：C:\nginx\conf\pt-site.conf
+    echo 3. 手动测试配置：cd C:\nginx ^&^& nginx.exe -t
+    echo 4. 查看错误日志：C:\nginx\logs\error.log
+    echo 5. 运行配置管理：nginx\manage-nginx-project.bat test
+    echo === 建议结束 ===
+)
 
 echo.
 echo =====================================
@@ -149,30 +222,58 @@ echo =====================================
 echo.
 echo 当前配置的IP地址：!LOCAL_IP!
 echo.
+echo 部署检查结果：
+if !DEPLOY_ERROR! equ 0 (
+    if !DEPLOY_WARNING! equ 0 (
+        echo ✅ 所有检查通过 - 系统已准备就绪
+    ) else (
+        echo ⚠️ 基本通过但有 !DEPLOY_WARNING! 个警告项
+    )
+) else (
+    echo ❌ 发现 !DEPLOY_ERROR! 个严重问题需要解决
+)
+echo.
 echo 服务访问地址：
 echo   后端API：    http://!LOCAL_IP!:3001
 echo   前端界面：   http://!LOCAL_IP!:3000
-echo   HTTPS入口：  https://!LOCAL_IP!/ (推荐)
-echo   HTTP入口：   http://!LOCAL_IP!/ (自动重定向到HTTPS)
+if exist "C:\nginx\ssl\pt.local.crt" (
+    echo   HTTPS入口：  https://!LOCAL_IP!/ (推荐)
+    echo   HTTP入口：   http://!LOCAL_IP!/ (自动重定向到HTTPS)
+) else (
+    echo   HTTP入口：   http://!LOCAL_IP!/
+)
 echo.
 echo Tracker服务：
 echo   Announce：   http://!LOCAL_IP!:3001/announce
 echo.
 echo 注意事项：
-echo - 首次HTTPS访问需要接受自签名证书警告
+if exist "C:\nginx\ssl\pt.local.crt" (
+    echo - 首次HTTPS访问需要接受自签名证书警告
+) else (
+    echo - 如需HTTPS访问，请先生成SSL证书
+)
 echo - 确保防火墙已开放相应端口（3000, 3001, 80, 443）
 echo - 如果IP地址变化，请重新运行此脚本
+if !DEPLOY_WARNING! gtr 0 (
+    echo - 建议解决警告项以获得更好的性能
+)
+if !DEPLOY_ERROR! gtr 0 (
+    echo - ⚠️ 请解决检查发现的错误项
+)
 echo.
 echo 日志位置：
 echo - 后端日志：backend目录的终端窗口
-echo - 前端日志：frontend目录的终端窗口
+echo - 前端日志：frontend目录的终端窗口  
 echo - Nginx日志：C:\nginx\logs\
+echo - Nginx管理：nginx\manage-nginx-project.bat
 echo.
 
 REM 检查服务状态
 echo 正在检查服务状态...
 timeout /t 3 >NUL
 
+echo.
+echo 最终服务状态检查：
 REM 检查端口占用情况
 netstat -an | findstr ":3000 " >NUL 2>&1
 if "%ERRORLEVEL%"=="0" (
@@ -184,6 +285,9 @@ if "%ERRORLEVEL%"=="0" (
 netstat -an | findstr ":3001 " >NUL 2>&1
 if "%ERRORLEVEL%"=="0" (
     echo ✓ 后端服务 (端口3001) - 运行中
+    
+    REM 测试后端API连通性
+    powershell -Command "try { Invoke-RestMethod -Uri 'http://localhost:3001/health' -TimeoutSec 3 | Out-Null; Write-Host '✓ 后端API连通性正常' } catch { Write-Host '⚠ 后端API连通性异常' }" 2>nul
 ) else (
     echo ✗ 后端服务 (端口3001) - 未启动
 )
@@ -191,6 +295,14 @@ if "%ERRORLEVEL%"=="0" (
 tasklist /FI "IMAGENAME eq nginx.exe" 2>NUL | find /I /N "nginx.exe">NUL
 if "%ERRORLEVEL%"=="0" (
     echo ✓ Nginx服务 - 运行中
+    
+    REM 检查HTTP端口
+    netstat -an | findstr ":80 " >NUL 2>&1
+    if "%ERRORLEVEL%"=="0" (
+        echo ✓ HTTP端口(80) - 监听中
+    ) else (
+        echo ⚠ HTTP端口(80) - 未监听
+    )
 ) else (
     echo ✗ Nginx服务 - 未启动
 )
