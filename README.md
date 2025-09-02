@@ -27,6 +27,16 @@
 
 ### ⚡ 一键启动（推荐）
 
+**Windows用户:**
+```batch
+# 一键启动（自动配置IP）
+start.bat
+
+# 或者完整启动脚本
+start-pt-system.bat
+```
+
+**手动启动:**
 ```bash
 # 安装所有依赖
 npm run install:all
@@ -37,8 +47,22 @@ npm run dev
 
 ### 📍 访问地址
 
+启动后可通过以下地址访问：
+- **HTTPS入口（推荐）**: https://[您的IP]/
 - **前端应用**: http://localhost:3000
 - **后端API**: http://localhost:3001/api
+- **Tracker服务**: http://localhost:3001/announce
+
+### 🎯 启动脚本说明
+
+项目提供了多个Windows批处理脚本，简化启动过程：
+
+- **`start.bat`** - 简洁版一键启动脚本
+- **`start-pt-system.bat`** - 完整启动脚本（自动IP检测和配置更新）
+- **`quick-start.bat`** - 快速启动（不修改配置）
+- **`stop-pt-system.bat`** - 停止所有服务
+
+详细说明请参考：[START-SCRIPTS-README.md](START-SCRIPTS-README.md)
 
 ### 🔧 分步安装
 

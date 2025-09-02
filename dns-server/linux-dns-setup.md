@@ -74,40 +74,6 @@ sudo firewall-cmd --permanent --add-port=53/tcp
 sudo firewall-cmd --reload
 ```
 
-## 方案二：BIND9（功能更强大）
-
-### 1. 安装BIND9
-
-#### Ubuntu/Debian
-```bash
-sudo apt update
-sudo apt install bind9 bind9utils bind9-doc -y
-```
-
-#### CentOS/RHEL
-```bash
-sudo yum install bind bind-utils -y
-```
-
-### 2. BIND9基础配置
-
-编辑主配置文件：
-```bash
-sudo nano /etc/bind/named.conf.local
-```
-
-### 3. 启动BIND9服务
-
-```bash
-# Ubuntu/Debian
-sudo systemctl start named
-sudo systemctl enable named
-
-# CentOS/RHEL
-sudo systemctl start named
-sudo systemctl enable named
-```
-
 ## 网络配置
 
 ### 1. 检查服务器IP地址

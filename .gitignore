@@ -23,6 +23,9 @@ dist/
 # Database backups
 backend/backup*.sql
 
+# Configuration backups
+backup/
+
 # Logs
 logs/
 *.log
