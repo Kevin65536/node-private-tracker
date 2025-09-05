@@ -36,12 +36,13 @@ import {
   Storage,
   Visibility
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { torrentAPI, apiUtils } from '../services/api';
 
 const TorrentsPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [torrents, setTorrents] = useState([]);
@@ -53,16 +54,29 @@ const TorrentsPage = () => {
     per_page: 20
   });
 
-  // 搜索和过滤参数
-  const [filters, setFilters] = useState({
-    search: '',
-    category: '',
-    sort: 'created_at',
-    order: 'DESC',
-    page: 1
+  // 搜索和过滤参数 - 从URL参数初始化
+  const [filters, setFilters] = useState(() => {
+    const categoryFromUrl = new URLSearchParams(window.location.search).get('category');
+    return {
+      search: '',
+      category: categoryFromUrl || '',
+      sort: 'created_at',
+      order: 'DESC',
+      page: 1
+    };
   });
 
   const [error, setError] = useState('');
+
+  // 监听URL参数变化
+  useEffect(() => {
+    const categoryFromUrl = searchParams.get('category');
+    setFilters(prev => ({
+      ...prev,
+      category: categoryFromUrl || '',
+      page: 1  // 重置页码
+    }));
+  }, [searchParams]);
 
   // 获取分类列表
   useEffect(() => {
@@ -95,6 +109,8 @@ const TorrentsPage = () => {
         sort: filters.sort,
         order: filters.order
       };
+
+      console.log('正在获取种子，参数:', params); // 调试日志
 
       const response = await torrentAPI.getTorrents(params);
       setTorrents(response.data.torrents);
@@ -160,9 +176,18 @@ const TorrentsPage = () => {
       <Box sx={{ mb: 3 }}>
         <Typography variant="h4" gutterBottom>
           种子列表
+          {filters.category && categories.length > 0 && (
+            <Chip 
+              label={categories.find(cat => cat.id.toString() === filters.category.toString())?.name || '未知分类'}
+              color="primary"
+              variant="outlined"
+              sx={{ ml: 2, fontSize: '0.9rem' }}
+            />
+          )}
         </Typography>
         <Typography variant="body1" color="text.secondary">
           浏览和下载站点中的种子资源
+          {filters.category && ` - 当前分类: ${categories.find(cat => cat.id.toString() === filters.category.toString())?.name || '未知分类'}`}
         </Typography>
       </Box>
 
@@ -269,15 +294,28 @@ const TorrentsPage = () => {
             </Grid>
 
             <Grid item xs={12} sm={2}>
-              <Button
-                type="submit"
-                variant="contained"
-                fullWidth
-                startIcon={<Search />}
-                disabled={loading}
-              >
-                搜索
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<Search />}
+                  disabled={loading}
+                  sx={{ flex: 1 }}
+                >
+                  搜索
+                </Button>
+                {filters.category && (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => handleFilterChange('category', '')}
+                    disabled={loading}
+                    title="清除分类筛选"
+                  >
+                    清除
+                  </Button>
+                )}
+              </Box>
             </Grid>
           </Grid>
         </form>

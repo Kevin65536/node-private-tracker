@@ -44,7 +44,7 @@ const HomePage = () => {
       try {
         // 获取最新种子
         const torrentsResponse = await torrentAPI.getTorrents({
-          limit: 10,
+          limit: 6,  // 减少显示数量从10到6
           sort: 'created_at',
           order: 'DESC'
         });
@@ -157,6 +157,24 @@ const HomePage = () => {
         </Grid>
       </Grid>
 
+      {/* 站点公告 - 上浮到统计数据之后 */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            📢 重要公告
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            • 请遵守站点规则，维护良好的分享环境
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            • 保持良好的上传下载比例，共同维护站点生态
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            • 如有问题请及时联系管理员
+          </Typography>
+        </CardContent>
+      </Card>
+
       <Grid container spacing={3}>
         {/* 最新种子 */}
         <Grid item xs={12} md={8}>
@@ -168,39 +186,37 @@ const HomePage = () => {
               {loading ? (
                 <Typography>加载中...</Typography>
               ) : recentTorrents.length > 0 ? (
-                <List>
+                <List dense>
                   {recentTorrents.map((torrent, index) => (
                     <React.Fragment key={torrent.id}>
                       <ListItem
                         button
                         onClick={() => navigate(`/torrents/${torrent.id}`)}
+                        sx={{ py: 1 }}
                       >
                         <ListItemText
-                          primary={torrent.name}
+                          primary={
+                            <Typography variant="subtitle2" noWrap sx={{ fontWeight: 500 }}>
+                              {torrent.name}
+                            </Typography>
+                          }
                           secondary={
-                            <Box>
-                              <Typography variant="body2" color="text.secondary">
-                                上传者: {torrent.uploader?.username} | 
-                                大小: {apiUtils.formatFileSize(torrent.size)} | 
-                                时间: {apiUtils.formatDate(torrent.created_at)}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                              <Typography variant="caption" color="text.secondary">
+                                {torrent.uploader?.username} | {apiUtils.formatFileSize(torrent.size)} | {apiUtils.formatDate(torrent.created_at)}
                               </Typography>
-                              <Box sx={{ mt: 1 }}>
+                              <Box sx={{ display: 'flex', gap: 0.5 }}>
                                 <Chip 
                                   label={`🟢 ${torrent.real_time_stats?.seeders || torrent.seeders || 0}`} 
                                   size="small" 
-                                  sx={{ mr: 1 }} 
-                                  title="当前做种量"
+                                  variant="outlined"
+                                  sx={{ fontSize: '0.7rem', height: 20 }}
                                 />
                                 <Chip 
                                   label={`🔴 ${torrent.real_time_stats?.leechers || torrent.leechers || 0}`} 
                                   size="small" 
-                                  sx={{ mr: 1 }} 
-                                  title="当前下载量"
-                                />
-                                <Chip 
-                                  label={`✅ ${torrent.real_time_stats?.completed || torrent.completed || 0}`} 
-                                  size="small"
-                                  title="总完成量"
+                                  variant="outlined"
+                                  sx={{ fontSize: '0.7rem', height: 20 }}
                                 />
                               </Box>
                             </Box>
@@ -272,7 +288,7 @@ const HomePage = () => {
                   </Button>
                   <Button
                     variant="outlined"
-                    onClick={() => navigate('/dashboard')}
+                    onClick={() => navigate('/profile')}
                     fullWidth
                   >
                     个人中心
@@ -290,24 +306,6 @@ const HomePage = () => {
           )}
         </Grid>
       </Grid>
-
-      {/* 站点公告 */}
-      <Card sx={{ mt: 4 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            📢 站点公告
-          </Typography>
-          <Typography variant="body2" color="text.secondary" paragraph>
-            欢迎使用LZU PT站！本站致力于提供优质的教育资源分享平台。
-          </Typography>
-          <Typography variant="body2" color="text.secondary" paragraph>
-            • 请遵守站点规则，维护良好的分享环境
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            • 保持良好的上传下载比例，共同维护站点生态
-          </Typography>
-        </CardContent>
-      </Card>
     </Container>
   );
 };
