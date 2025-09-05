@@ -18,6 +18,7 @@ const userRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
 const trackerRoutes = require('./routes/tracker');
 const statsRoutes = require('./routes/stats');
+const securityRoutes = require('./routes/security');
 
 // 导入统计调度器
 const statsScheduler = require('./utils/statsScheduler');
@@ -245,6 +246,7 @@ app.get('/api/stats', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/torrents', torrentRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/admin/security', securityRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/stats', statsRoutes);
 

@@ -32,6 +32,7 @@ import { useAuth } from '../contexts/AuthContext';
 import UserManagement from '../components/UserManagement';
 import TorrentManagement from '../components/TorrentManagement';
 import PeerMonitoring from '../components/PeerMonitoring';
+import SecurityManagement from '../components/SecurityManagement';
 import api from '../services/api';
 import { formatNumber } from '../utils/formatters';
 
@@ -278,14 +279,7 @@ const AdminPage = () => {
       case 'security':
         return (
           <Box>
-            <Typography variant="h5" sx={{ mb: 3 }}>
-              安全管理
-            </Typography>
-            <Paper sx={{ p: 3, textAlign: 'center' }}>
-              <Typography variant="body1">
-                安全管理功能正在开发中...
-              </Typography>
-            </Paper>
+            <SecurityManagement />
           </Box>
         );
       default:
