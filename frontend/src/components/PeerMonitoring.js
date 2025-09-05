@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -25,6 +25,14 @@ import {
   AccordionSummary,
   AccordionDetails,
   Button,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Collapse,
+  Divider,
+  Stack,
 } from '@mui/material';
 import {
   Refresh,
@@ -36,6 +44,9 @@ import {
   ExpandMore,
   NetworkCheck,
   Speed,
+  FilterList,
+  Clear,
+  Search,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { formatBytes, formatDuration } from '../utils/formatters';
@@ -52,39 +63,56 @@ const PeerMonitoring = () => {
   const [announcePage, setAnnouncePage] = useState(0);
   const [announceRowsPerPage, setAnnounceRowsPerPage] = useState(10);
 
+  // 新增筛选状态
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    // Peer筛选
+    peer_user_id: '',
+    peer_username: '',
+    peer_status: '',
+    // Announce筛选
+    announce_user_id: '',
+    announce_username: '',
+    announce_event: '',
+    announce_torrent_id: '',
+    // Stats筛选
+    stats_user_id: '',
+    stats_status: '',
+  });
+
+  // 防抖状态 - 用于延迟API请求
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
+
   // 自动刷新
   useEffect(() => {
     const interval = setInterval(fetchData, 30000); // 30秒刷新一次
     return () => clearInterval(interval);
   }, []);
 
+  // 防抖处理 - 延迟500ms后更新debouncedFilters
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, 500); // 500ms防抖延迟
+
+    return () => clearTimeout(timeoutId);
+  }, [filters]);
+
   useEffect(() => {
     fetchData();
-  }, [page, rowsPerPage, announcePage, announceRowsPerPage]);
+  }, [page, rowsPerPage, announcePage, announceRowsPerPage, debouncedFilters]); // 使用debouncedFilters而不是filters
 
-  const testAPI = async () => {
-    try {
-      console.log('测试API连接...');
-      
-      // 测试基础连接
-      const healthResponse = await api.get('/health');
-      console.log('健康检查响应:', healthResponse.data);
-      
-      // 测试认证状态
-      const authResponse = await api.get('/auth/verify');
-      console.log('认证状态:', authResponse.data);
-      
-      // 测试admin权限
-      try {
-        const adminResponse = await api.get('/admin/peers/stats');
-        console.log('Admin API响应:', adminResponse.data);
-      } catch (adminError) {
-        console.error('Admin API错误:', adminError.response?.status, adminError.response?.data);
+  const buildQueryParams = (baseParams = {}) => {
+    const params = new URLSearchParams();
+    
+    // 添加基础参数
+    Object.entries(baseParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value);
       }
-      
-    } catch (error) {
-      console.error('API测试失败:', error);
-    }
+    });
+    
+    return params.toString();
   };
 
   const fetchData = async () => {
@@ -94,10 +122,33 @@ const PeerMonitoring = () => {
     try {
       console.log('开始获取peer数据...');
       
+      // 构建请求参数 - 使用debouncedFilters而不是filters
+      const peerParams = buildQueryParams({
+        page: page + 1,
+        limit: rowsPerPage,
+        user_id: debouncedFilters.peer_user_id,
+        username: debouncedFilters.peer_username,
+        status: debouncedFilters.peer_status,
+      });
+
+      const statsParams = buildQueryParams({
+        user_id: debouncedFilters.stats_user_id,
+        status: debouncedFilters.stats_status,
+      });
+
+      const announceParams = buildQueryParams({
+        page: announcePage + 1,
+        limit: announceRowsPerPage,
+        user_id: debouncedFilters.announce_user_id,
+        username: debouncedFilters.announce_username,
+        event: debouncedFilters.announce_event,
+        torrent_id: debouncedFilters.announce_torrent_id,
+      });
+      
       const [peersResponse, statsResponse, announcesResponse] = await Promise.all([
-        api.get(`/admin/peers/active?page=${page + 1}&limit=${rowsPerPage}`),
-        api.get('/admin/peers/stats'),
-        api.get(`/admin/announces/recent?page=${announcePage + 1}&limit=${announceRowsPerPage}`)
+        api.get(`/admin/peers/active?${peerParams}`),
+        api.get(`/admin/peers/stats?${statsParams}`),
+        api.get(`/admin/announces/recent?${announceParams}`)
       ]);
 
       console.log('API响应数据:', {
@@ -165,6 +216,40 @@ const PeerMonitoring = () => {
     setAnnouncePage(0);
   };
 
+  // 筛选相关方法
+  const handleFilterChange = (filterType, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterType]: value
+    }));
+    // 重置页码
+    if (filterType.startsWith('peer_')) {
+      setPage(0);
+    } else if (filterType.startsWith('announce_')) {
+      setAnnouncePage(0);
+    }
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      peer_user_id: '',
+      peer_username: '',
+      peer_status: '',
+      announce_user_id: '',
+      announce_username: '',
+      announce_event: '',
+      announce_torrent_id: '',
+      stats_user_id: '',
+      stats_status: '',
+    });
+    setPage(0);
+    setAnnouncePage(0);
+  };
+
+  const hasActiveFilters = () => {
+    return Object.values(filters).some(value => value !== '');
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'started': return 'primary';
@@ -199,6 +284,226 @@ const PeerMonitoring = () => {
     const diffDays = Math.floor(diffHours / 24);
     return `${diffDays}天前`;
   };
+
+  // 渲染筛选控件
+  const renderFilters = () => (
+    <Paper sx={{ p: 3, mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h6">筛选条件</Typography>
+        <Box>
+          <Button
+            startIcon={<Clear />}
+            onClick={clearFilters}
+            disabled={!hasActiveFilters()}
+            size="small"
+            sx={{ mr: 1 }}
+          >
+            清空筛选
+          </Button>
+          <Button
+            startIcon={<FilterList />}
+            onClick={() => setShowFilters(!showFilters)}
+            variant={showFilters ? 'contained' : 'outlined'}
+            size="small"
+          >
+            {showFilters ? '隐藏筛选' : '显示筛选'}
+          </Button>
+        </Box>
+      </Box>
+      
+      <Collapse in={showFilters}>
+        <Grid container spacing={3}>
+          {/* Peer筛选 */}
+          {activeTab === 0 && (
+            <>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" color="primary" gutterBottom>
+                  活跃Peer筛选
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="用户ID"
+                  value={filters.peer_user_id}
+                  onChange={(e) => handleFilterChange('peer_user_id', e.target.value)}
+                  placeholder="输入用户ID"
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="用户名"
+                  value={filters.peer_username}
+                  onChange={(e) => handleFilterChange('peer_username', e.target.value)}
+                  placeholder="输入用户名（支持模糊搜索）"
+                  InputProps={{
+                    startAdornment: <Search sx={{ mr: 1, color: 'action.active' }} />,
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>状态</InputLabel>
+                  <Select
+                    value={filters.peer_status}
+                    label="状态"
+                    onChange={(e) => handleFilterChange('peer_status', e.target.value)}
+                  >
+                    <MenuItem value="">所有状态</MenuItem>
+                    <MenuItem value="started">已开始</MenuItem>
+                    <MenuItem value="downloading">下载中</MenuItem>
+                    <MenuItem value="seeding">做种中</MenuItem>
+                    <MenuItem value="stopped">已停止</MenuItem>
+                    <MenuItem value="completed">已完成</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </>
+          )}
+
+          {/* Announce筛选 */}
+          {activeTab === 1 && (
+            <>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" color="primary" gutterBottom>
+                  通告记录筛选
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="用户ID"
+                  value={filters.announce_user_id}
+                  onChange={(e) => handleFilterChange('announce_user_id', e.target.value)}
+                  placeholder="输入用户ID"
+                />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="用户名"
+                  value={filters.announce_username}
+                  onChange={(e) => handleFilterChange('announce_username', e.target.value)}
+                  placeholder="输入用户名"
+                  InputProps={{
+                    startAdornment: <Search sx={{ mr: 1, color: 'action.active' }} />,
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>事件类型</InputLabel>
+                  <Select
+                    value={filters.announce_event}
+                    label="事件类型"
+                    onChange={(e) => handleFilterChange('announce_event', e.target.value)}
+                  >
+                    <MenuItem value="">所有事件</MenuItem>
+                    <MenuItem value="started">开始</MenuItem>
+                    <MenuItem value="stopped">停止</MenuItem>
+                    <MenuItem value="completed">完成</MenuItem>
+                    <MenuItem value="update">更新</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="种子ID"
+                  value={filters.announce_torrent_id}
+                  onChange={(e) => handleFilterChange('announce_torrent_id', e.target.value)}
+                  placeholder="输入种子ID"
+                />
+              </Grid>
+            </>
+          )}
+
+          {/* 统计筛选 */}
+          {activeTab === 2 && (
+            <>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" color="primary" gutterBottom>
+                  统计数据筛选
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="用户ID"
+                  value={filters.stats_user_id}
+                  onChange={(e) => handleFilterChange('stats_user_id', e.target.value)}
+                  placeholder="输入用户ID"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>状态</InputLabel>
+                  <Select
+                    value={filters.stats_status}
+                    label="状态"
+                    onChange={(e) => handleFilterChange('stats_status', e.target.value)}
+                  >
+                    <MenuItem value="">所有状态</MenuItem>
+                    <MenuItem value="started">已开始</MenuItem>
+                    <MenuItem value="downloading">下载中</MenuItem>
+                    <MenuItem value="seeding">做种中</MenuItem>
+                    <MenuItem value="stopped">已停止</MenuItem>
+                    <MenuItem value="completed">已完成</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </>
+          )}
+        </Grid>
+
+        {hasActiveFilters() && (
+          <Box sx={{ mt: 2, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              当前筛选条件:
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {Object.entries(filters).map(([key, value]) => {
+                if (!value) return null;
+                
+                const getFilterLabel = (filterKey) => {
+                  const labels = {
+                    peer_user_id: 'Peer用户ID',
+                    peer_username: 'Peer用户名',
+                    peer_status: 'Peer状态',
+                    announce_user_id: '通告用户ID',
+                    announce_username: '通告用户名',
+                    announce_event: '通告事件',
+                    announce_torrent_id: '通告种子ID',
+                    stats_user_id: '统计用户ID',
+                    stats_status: '统计状态',
+                  };
+                  return labels[filterKey] || filterKey;
+                };
+
+                return (
+                  <Chip
+                    key={key}
+                    label={`${getFilterLabel(key)}: ${value}`}
+                    size="small"
+                    onDelete={() => handleFilterChange(key, '')}
+                    color="primary"
+                    variant="outlined"
+                  />
+                );
+              })}
+            </Stack>
+          </Box>
+        )}
+      </Collapse>
+    </Paper>
+  );
 
   const renderStatsCards = () => (
     <Grid container spacing={3} sx={{ mb: 3 }}>
@@ -507,14 +812,6 @@ const PeerMonitoring = () => {
           Peer实时监控
         </Typography>
         <Box>
-          <Button 
-            onClick={testAPI} 
-            variant="outlined" 
-            sx={{ mr: 1 }}
-            size="small"
-          >
-            测试API
-          </Button>
           <IconButton onClick={fetchData} disabled={loading}>
             <Refresh />
           </IconButton>
@@ -529,11 +826,40 @@ const PeerMonitoring = () => {
 
       {renderStatsCards()}
 
+      {renderFilters()}
+
       <Paper sx={{ mb: 3 }}>
         <Tabs value={activeTab} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tab label={`活跃Peer (${stats.active_peers || 0})`} />
-          <Tab label="最近通告" />
-          <Tab label="详细统计" />
+          <Tab 
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <span>{`活跃Peer (${stats.active_peers || 0})`}</span>
+                {(filters.peer_user_id || filters.peer_username || filters.peer_status) && (
+                  <Chip size="small" label="已筛选" color="primary" sx={{ ml: 1 }} />
+                )}
+              </Box>
+            } 
+          />
+          <Tab 
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <span>最近通告</span>
+                {(filters.announce_user_id || filters.announce_username || filters.announce_event || filters.announce_torrent_id) && (
+                  <Chip size="small" label="已筛选" color="primary" sx={{ ml: 1 }} />
+                )}
+              </Box>
+            } 
+          />
+          <Tab 
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <span>详细统计</span>
+                {(filters.stats_user_id || filters.stats_status) && (
+                  <Chip size="small" label="已筛选" color="primary" sx={{ ml: 1 }} />
+                )}
+              </Box>
+            } 
+          />
         </Tabs>
 
         <Box sx={{ p: 3 }}>
@@ -611,6 +937,14 @@ const PeerMonitoring = () => {
                     <Typography variant="body2">
                       活跃用户数: {stats.active_users || 0}
                     </Typography>
+                    {(filters.stats_user_id || filters.stats_status) && (
+                      <>
+                        <Divider sx={{ my: 1 }} />
+                        <Typography variant="body2" color="primary">
+                          注意: 当前显示的是筛选后的统计数据
+                        </Typography>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               </Grid>

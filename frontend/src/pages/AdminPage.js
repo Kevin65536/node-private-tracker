@@ -32,6 +32,7 @@ import { useAuth } from '../contexts/AuthContext';
 import UserManagement from '../components/UserManagement';
 import TorrentManagement from '../components/TorrentManagement';
 import PeerMonitoring from '../components/PeerMonitoring';
+import AnnounceStats from '../components/AnnounceStats';
 import SecurityManagement from '../components/SecurityManagement';
 import api from '../services/api';
 import { formatNumber } from '../utils/formatters';
@@ -100,6 +101,7 @@ const AdminPage = () => {
       { id: 'torrent-review', label: '种子管理', icon: <Reviews /> },
       { id: 'user-management', label: '用户管理', icon: <People /> },
       { id: 'peer-monitoring', label: 'Peer监控', icon: <NetworkCheck /> },
+      { id: 'announce-stats', label: '通告统计', icon: <BarChart /> },
       { id: 'system-settings', label: '系统设置', icon: <Settings /> },
       { id: 'security', label: '安全管理', icon: <Security /> },
     ];
@@ -125,6 +127,13 @@ const AdminPage = () => {
         icon: <People />,
         action: () => setSelectedSection('user-management'),
         color: 'secondary',
+      },
+      {
+        title: '通告统计',
+        description: '查看系统监控和统计数据',
+        icon: <BarChart />,
+        action: () => setSelectedSection('announce-stats'),
+        color: 'info',
       },
       {
         title: '系统设置',
@@ -261,6 +270,12 @@ const AdminPage = () => {
         return (
           <Box>
             <PeerMonitoring />
+          </Box>
+        );
+      case 'announce-stats':
+        return (
+          <Box>
+            <AnnounceStats />
           </Box>
         );
       case 'system-settings':
