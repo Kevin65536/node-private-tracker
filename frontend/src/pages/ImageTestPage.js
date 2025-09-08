@@ -6,8 +6,18 @@ const ImageTestPage = () => {
   
   // 测试不同的图片URL构建方式
   const getServerBaseUrl = () => {
-    const apiUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:3001/api`;
-    return apiUrl.replace('/api', '');
+    // 检查是否通过nginx代理访问
+    const currentPort = window.location.port;
+    const isNginxPort = !currentPort || currentPort === '80' || currentPort === '443';
+    
+    if (isNginxPort) {
+      // 通过nginx代理访问，使用相对路径
+      return '';  // 返回空字符串，这样拼接后就是 /uploads/xxx
+    } else {
+      // 直接访问前端开发服务器，需要指向后端服务器
+      const apiUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:3001/api`;
+      return apiUrl.replace('/api', '');
+    }
   };
   
   const testImageFile = '1753970989559-73f0f934da8200f1.png';

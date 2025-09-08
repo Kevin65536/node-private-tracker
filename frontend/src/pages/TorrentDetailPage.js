@@ -29,6 +29,7 @@ import {
   IconButton,
   Skeleton
 } from '@mui/material';
+import { getImageUrl } from '../utils/imageUtils';
 import {
   Download as DownloadIcon,
   Category as CategoryIcon,
@@ -118,13 +119,8 @@ const TorrentImage = React.memo(({ imageFile, index, onClick }) => {
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
   
-  // 获取服务器基础URL（不包含/api路径）
-  const getServerBaseUrl = () => {
-    const apiUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:3001/api`;
-    return apiUrl.replace('/api', '');
-  };
-  
-  const imageUrl = `${getServerBaseUrl()}/uploads/${imageFile}`;
+  // 使用统一的图片URL工具函数
+  const imageUrl = getImageUrl(imageFile);
   
   const handleImageLoad = useCallback(() => {
     setImageLoading(false);

@@ -78,7 +78,9 @@ echo 正在更新站点配置...
 set "CURRENT_DIR=%CD%"
 set "UPLOAD_PATH=!CURRENT_DIR!\backend\uploads"
 set "UPLOAD_PATH=!UPLOAD_PATH:\=/!"
-powershell -Command "(Get-Content 'nginx\pt-site.conf') -replace 'alias C:/Users/[^;]+/uploads/;', 'alias !UPLOAD_PATH!/;' | Set-Content 'nginx\pt-site.conf'"
+echo 原始路径: !CURRENT_DIR!\backend\uploads
+echo 转换路径: !UPLOAD_PATH!
+powershell -Command "$content = Get-Content 'nginx\pt-site.conf' -Raw; $newContent = $content -replace 'alias [^;]+/uploads/;', 'alias !UPLOAD_PATH!/;'; Set-Content 'nginx\pt-site.conf' -Value $newContent -NoNewline"
 
 REM 检查并创建nginx目录结构
 echo 正在检查Nginx安装...
