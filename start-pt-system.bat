@@ -192,7 +192,7 @@ REM 启动Nginx服务
 if !DEPLOY_ERROR! equ 0 (
     echo 正在启动Nginx服务...
     cd /d "%~dp0nginx"
-    call manage-nginx-project.bat start >nul 2>&1
+    call manage-nginx.bat start
     cd /d "%~dp0"
     
     REM 验证Nginx启动状态
@@ -213,7 +213,7 @@ if !DEPLOY_ERROR! equ 0 (
     echo 2. 检查站点配置：C:\nginx\conf\pt-site.conf
     echo 3. 手动测试配置：cd C:\nginx ^&^& nginx.exe -t
     echo 4. 查看错误日志：C:\nginx\logs\error.log
-    echo 5. 运行配置管理：nginx\manage-nginx-project.bat test
+    echo 5. 运行配置管理：nginx\manage-nginx.bat test
     echo === 建议结束 ===
 )
 
@@ -267,7 +267,7 @@ echo 日志位置：
 echo - 后端日志：backend目录的终端窗口
 echo - 前端日志：frontend目录的终端窗口  
 echo - Nginx日志：C:\nginx\logs\
-echo - Nginx管理：nginx\manage-nginx-project.bat
+echo - Nginx管理：nginx\manage-nginx.bat
 echo.
 
 REM 检查服务状态
