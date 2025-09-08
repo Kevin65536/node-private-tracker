@@ -19,6 +19,7 @@ const adminRoutes = require('./routes/admin');
 const trackerRoutes = require('./routes/tracker');
 const statsRoutes = require('./routes/stats');
 const securityRoutes = require('./routes/security');
+const announcementRoutes = require('./routes/announcements');
 
 // 导入统计调度器
 const statsScheduler = require('./utils/statsScheduler');
@@ -249,6 +250,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/admin/security', securityRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/announcements', announcementRoutes);
 
 // Tracker 路由 (放在最后，避免拦截其他路由)
 app.use('/tracker', trackerRoutes);
@@ -328,6 +330,14 @@ async function startServer() {
       // 生产环境使用更安全的同步
       await sequelize.sync({ alter: false });
       console.log('✅ 数据库同步完成');
+      
+      // 初始化公告系统
+      try {
+        const { initAnnouncements } = require('./setup-announcements');
+        await initAnnouncements();
+      } catch (error) {
+        console.warn('⚠️  公告系统初始化失败，但不影响系统启动:', error.message);
+      }
       
       // 恢复PeerManager状态
       await restorePeerManagerFromDatabase();

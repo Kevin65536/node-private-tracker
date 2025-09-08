@@ -25,6 +25,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { torrentAPI, apiUtils } from '../services/api';
 import api from '../services/api';
 import { formatFileSize, formatNumber } from '../utils/formatters';
+import AnnouncementsList from '../components/AnnouncementsList';
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -157,23 +158,13 @@ const HomePage = () => {
         </Grid>
       </Grid>
 
-      {/* 站点公告 - 上浮到统计数据之后 */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            📢 重要公告
-          </Typography>
-          <Typography variant="body2" color="text.secondary" paragraph>
-            • 请遵守站点规则，维护良好的分享环境
-          </Typography>
-          <Typography variant="body2" color="text.secondary" paragraph>
-            • 保持良好的上传下载比例，共同维护站点生态
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            • 如有问题请及时联系管理员
-          </Typography>
-        </CardContent>
-      </Card>
+      {/* 站点公告 - 使用新的公告组件 */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" gutterBottom>
+          📢 站点公告
+        </Typography>
+        <AnnouncementsList limit={3} />
+      </Box>
 
       <Grid container spacing={3}>
         {/* 最新种子 */}

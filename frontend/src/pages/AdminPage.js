@@ -26,6 +26,7 @@ import {
   Download,
   Category,
   NetworkCheck,
+  Announcement,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -34,6 +35,7 @@ import TorrentManagement from '../components/TorrentManagement';
 import PeerMonitoring from '../components/PeerMonitoring';
 import AnnounceStats from '../components/AnnounceStats';
 import SecurityManagement from '../components/SecurityManagement';
+import AnnouncementManagement from '../components/AnnouncementManagement';
 import api from '../services/api';
 import { formatNumber } from '../utils/formatters';
 
@@ -100,6 +102,7 @@ const AdminPage = () => {
       { id: 'overview', label: '概览', icon: <BarChart /> },
       { id: 'torrent-review', label: '种子管理', icon: <Reviews /> },
       { id: 'user-management', label: '用户管理', icon: <People /> },
+      { id: 'announcement-management', label: '公告管理', icon: <Announcement /> },
       { id: 'peer-monitoring', label: 'Peer监控', icon: <NetworkCheck /> },
       { id: 'announce-stats', label: '通告统计', icon: <BarChart /> },
       { id: 'system-settings', label: '系统设置', icon: <Settings /> },
@@ -264,6 +267,12 @@ const AdminPage = () => {
               用户管理
             </Typography>
             <UserManagement />
+          </Box>
+        );
+      case 'announcement-management':
+        return (
+          <Box>
+            <AnnouncementManagement />
           </Box>
         );
       case 'peer-monitoring':
