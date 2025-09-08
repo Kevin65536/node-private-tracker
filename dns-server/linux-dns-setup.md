@@ -91,7 +91,7 @@ ping -c 4 8.8.8.8
 ### 2. 测试DNS解析
 ```bash
 # 测试本地DNS
-nslookup pt.local 127.0.0.1
+nslookup pt.lan 127.0.0.1
 
 # 测试外部DNS
 dig @127.0.0.1 baidu.com

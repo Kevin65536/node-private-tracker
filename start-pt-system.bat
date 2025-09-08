@@ -71,7 +71,13 @@ powershell -Command "(Get-Content 'backend\.env') -replace 'ANNOUNCE_URL=http://
 
 REM 更新nginx.conf中的IP地址
 echo 正在更新Nginx主配置...
-powershell -Command "(Get-Content 'nginx\nginx.conf') -replace 'server_name [0-9.]+;', 'server_name !LOCAL_IP!;' -replace 'https://[0-9.]+', 'https://!LOCAL_IP!' | Set-Content 'nginx\nginx.conf'"
+node update-ip-configs.js
+if !errorlevel! equ 0 (
+    echo ✓ Nginx配置更新成功
+) else (
+    echo ⚠ Nginx配置更新失败，使用备用方案
+    powershell -Command "(Get-Content 'nginx\nginx.conf') -replace 'server_name [0-9.]+;', 'server_name !LOCAL_IP!;' -replace 'https://[0-9.]+', 'https://!LOCAL_IP!' -replace 'return 301 https://[0-9.]+\$', 'return 301 https://!LOCAL_IP!$' -replace 'server_name pt\.lan \*\.local [0-9.]+;', 'server_name pt.lan *.local !LOCAL_IP!;' | Set-Content 'nginx\nginx.conf'"
+)
 
 REM 更新pt-site.conf中的上传目录路径
 echo 正在更新站点配置...
@@ -180,7 +186,7 @@ if exist "backend\uploads" (
 )
 
 REM 检查SSL证书（可选）
-if exist "C:\nginx\ssl\pt.local.crt" (
+if exist "C:\nginx\ssl\pt.lan.crt" (
     echo ✓ SSL证书存在
     set /a DEPLOY_SUCCESS+=1
 ) else (
@@ -224,6 +230,17 @@ echo =====================================
 echo.
 echo 当前配置的IP地址：!LOCAL_IP!
 echo.
+
+REM 上传IP地址到远程服务
+echo 正在上传IP地址到远程服务...
+node upload-ip.js
+if !errorlevel! equ 0 (
+    echo ✓ IP地址上传成功
+) else (
+    echo ⚠ IP地址上传失败，请检查配置
+)
+echo.
+
 echo 部署检查结果：
 if !DEPLOY_ERROR! equ 0 (
     if !DEPLOY_WARNING! equ 0 (
@@ -238,7 +255,7 @@ echo.
 echo 服务访问地址：
 echo   后端API：    http://!LOCAL_IP!:3001
 echo   前端界面：   http://!LOCAL_IP!:3000
-if exist "C:\nginx\ssl\pt.local.crt" (
+if exist "C:\nginx\ssl\pt.lan.crt" (
     echo   HTTPS入口：  https://!LOCAL_IP!/ (推荐)
     echo   HTTP入口：   http://!LOCAL_IP!/ (自动重定向到HTTPS)
 ) else (
@@ -249,7 +266,7 @@ echo Tracker服务：
 echo   Announce：   http://!LOCAL_IP!:3001/announce
 echo.
 echo 注意事项：
-if exist "C:\nginx\ssl\pt.local.crt" (
+if exist "C:\nginx\ssl\pt.lan.crt" (
     echo - 首次HTTPS访问需要接受自签名证书警告
 ) else (
     echo - 如需HTTPS访问，请先生成SSL证书

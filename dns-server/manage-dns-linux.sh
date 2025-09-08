@@ -263,8 +263,8 @@ update_pt_ip() {
     backup_config
     
     log_info "更新PT服务器IP地址为: $new_ip"
-    sed -i "s|address=/.*\.pt\.local/.*|address=/.pt.local/$new_ip|g" /etc/dnsmasq.conf
-    sed -i "s|address=/pt\.local/.*|address=/pt.local/$new_ip|g" /etc/dnsmasq.conf
+    sed -i "s|address=/.*\.pt\.local/.*|address=/.pt.lan/$new_ip|g" /etc/dnsmasq.conf
+    sed -i "s|address=/pt\.local/.*|address=/pt.lan/$new_ip|g" /etc/dnsmasq.conf
     
     # 测试配置
     if dnsmasq --test; then
@@ -273,7 +273,7 @@ update_pt_ip() {
         
         # 测试新配置
         sleep 2
-        if nslookup pt.local 127.0.0.1 | grep -q "$new_ip"; then
+        if nslookup pt.lan 127.0.0.1 | grep -q "$new_ip"; then
             log_success "新IP地址解析正常"
         else
             log_error "新IP地址解析失败"

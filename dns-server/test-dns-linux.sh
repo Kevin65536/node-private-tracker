@@ -83,7 +83,7 @@ test_dns_resolution() {
     echo "========================================"
     
     # 测试PT站域名
-    local domains=("pt.local" "www.pt.local" "tracker.pt.local" "api.pt.local")
+    local domains=("pt.lan" "www.pt.lan" "tracker.pt.lan" "api.pt.lan")
     
     for domain in "${domains[@]}"; do
         echo
@@ -122,8 +122,8 @@ test_dns_performance() {
     
     # 使用dig测试（如果可用）
     if command -v dig &> /dev/null; then
-        echo "使用dig测试pt.local查询时间:"
-        dig @$LOCAL_IP pt.local | grep "Query time"
+        echo "使用dig测试pt.lan查询时间:"
+        dig @$LOCAL_IP pt.lan | grep "Query time"
         
         echo "使用dig测试外部域名查询时间:"
         dig @$LOCAL_IP baidu.com | grep "Query time"
@@ -134,7 +134,7 @@ test_dns_performance() {
     # 并发查询测试
     log_info "并发查询测试（10个并发请求）..."
     for i in {1..10}; do
-        nslookup pt.local $LOCAL_IP > /dev/null 2>&1 &
+        nslookup pt.lan $LOCAL_IP > /dev/null 2>&1 &
     done
     wait
     log_success "并发查询测试完成"
@@ -161,7 +161,7 @@ check_configuration() {
     echo "监听端口: $(grep "^port=" /etc/dnsmasq.conf || echo "默认53")"
     echo "监听接口: $(grep "^interface=" /etc/dnsmasq.conf || echo "所有接口")"
     echo "上游DNS: $(grep "^server=" /etc/dnsmasq.conf | head -3)"
-    echo "PT域名配置: $(grep "pt.local" /etc/dnsmasq.conf | head -2)"
+    echo "PT域名配置: $(grep "pt.lan" /etc/dnsmasq.conf | head -2)"
 }
 
 # 检查防火墙状态
@@ -253,8 +253,8 @@ show_client_config() {
     echo
     
     echo "测试命令:"
-    echo "nslookup pt.local $LOCAL_IP"
-    echo "curl -k https://pt.local (忽略SSL证书警告)"
+    echo "nslookup pt.lan $LOCAL_IP"
+    echo "curl -k https://pt.lan (忽略SSL证书警告)"
 }
 
 # 故障排除建议

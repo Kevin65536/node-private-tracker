@@ -25,7 +25,7 @@ async function initializeDatabase() {
       // 创建默认管理员用户
       const adminUser = await User.create({
         username: 'admin',
-        email: 'admin@pt.local',
+        email: 'admin@pt.lan',
         password: 'admin123456', // 生产环境中请更改此密码
         role: 'admin',
         status: 'active'
@@ -86,7 +86,7 @@ async function initializeDatabase() {
       
       const testUser = await User.create({
         username: 'testuser',
-        email: 'test@pt.local',
+        email: 'test@pt.lan',
         password: 'test123456',
         role: 'user',
         status: 'active'

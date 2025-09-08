@@ -133,12 +133,12 @@ server=1.1.1.1
 no-resolv
 
 # PT站域名解析
-address=/pt.local/$PT_SERVER_IP
-address=/www.pt.local/$PT_SERVER_IP
-address=/tracker.pt.local/$PT_SERVER_IP
-address=/api.pt.local/$PT_SERVER_IP
-address=/admin.pt.local/$PT_SERVER_IP
-address=/.pt.local/$PT_SERVER_IP
+address=/pt.lan/$PT_SERVER_IP
+address=/www.pt.lan/$PT_SERVER_IP
+address=/tracker.pt.lan/$PT_SERVER_IP
+address=/api.pt.lan/$PT_SERVER_IP
+address=/admin.pt.lan/$PT_SERVER_IP
+address=/.pt.lan/$PT_SERVER_IP
 
 # 缓存和性能
 cache-size=3000
@@ -155,7 +155,7 @@ no-hosts
 log-queries
 
 # 域名设置
-domain=pt.local
+domain=pt.lan
 expand-hosts
 local-ttl=600
 auth-ttl=600
@@ -256,11 +256,11 @@ test_dns() {
     log_info "测试DNS解析..."
     
     echo
-    echo "测试pt.local解析:"
-    if nslookup pt.local 127.0.0.1; then
-        log_success "pt.local解析成功"
+    echo "测试pt.lan解析:"
+    if nslookup pt.lan 127.0.0.1; then
+        log_success "pt.lan解析成功"
     else
-        log_error "pt.local解析失败"
+        log_error "pt.lan解析失败"
     fi
     
     echo
@@ -292,7 +292,7 @@ show_completion() {
     echo "下一步操作："
     echo "1. 在路由器DHCP设置中将DNS服务器设为: $LOCAL_IP"
     echo "2. 或在客户端手动配置DNS为: $LOCAL_IP"
-    echo "3. 测试访问: https://pt.local"
+    echo "3. 测试访问: https://pt.lan"
     echo
     echo "管理命令："
     echo "  - 查看状态: systemctl status dnsmasq"
