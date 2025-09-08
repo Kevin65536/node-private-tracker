@@ -95,3 +95,6 @@ backend/tmp/
 # Temporary files
 *.tmp
 *.temp
+
+# config files containing sensitive info
+ip-configs.js
