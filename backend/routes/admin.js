@@ -604,20 +604,152 @@ router.get('/peers/active', authenticateToken, requireAdmin, async (req, res) =>
   }
 });
 
+// 获取通告统计信息
+router.get('/announces/stats', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { hours = 24, user_id = '', event = '' } = req.query;
+    const timeWindow = parseInt(hours);
+    const startTime = new Date(Date.now() - timeWindow * 60 * 60 * 1000);
+
+    // 构建查询条件
+    const whereConditions = {
+      announced_at: { [Op.gte]: startTime }
+    };
+
+    if (user_id) {
+      whereConditions.user_id = parseInt(user_id);
+    }
+
+    if (event) {
+      whereConditions.event = event;
+    }
+
+    // 1. 总体统计
+    const totalAnnounces = await AnnounceLog.count({ where: whereConditions });
+    
+    const activeUsers = await AnnounceLog.count({
+      distinct: true,
+      col: 'user_id',
+      where: whereConditions
+    });
+    
+    const activeTorrents = await AnnounceLog.count({
+      distinct: true,
+      col: 'torrent_id',  
+      where: whereConditions
+    });
+
+    // 2. 事件类型分布
+    const eventBreakdown = await AnnounceLog.findAll({
+      where: whereConditions,
+      attributes: [
+        'event',
+        [AnnounceLog.sequelize.fn('COUNT', AnnounceLog.sequelize.col('id')), 'count']
+      ],
+      group: ['event'],
+      raw: true
+    });
+
+    // 3. 按小时统计 - 使用PostgreSQL兼容的语法
+    const hourlyStats = await AnnounceLog.findAll({
+      where: whereConditions,
+      attributes: [
+        [AnnounceLog.sequelize.fn('date_trunc', 'hour', AnnounceLog.sequelize.col('announced_at')), 'hour'],
+        [AnnounceLog.sequelize.fn('COUNT', AnnounceLog.sequelize.col('id')), 'count']
+      ],
+      group: [AnnounceLog.sequelize.fn('date_trunc', 'hour', AnnounceLog.sequelize.col('announced_at'))],
+      order: [[AnnounceLog.sequelize.fn('date_trunc', 'hour', AnnounceLog.sequelize.col('announced_at')), 'ASC']],
+      raw: true
+    });
+
+    // 格式化事件分布数据
+    const formattedEventBreakdown = eventBreakdown.map(item => ({
+      event: item.event || 'update',
+      count: parseInt(item.count) || 0
+    }));
+
+    // 格式化按小时统计数据
+    const formattedHourlyStats = hourlyStats.map(item => ({
+      hour: item.hour,
+      count: parseInt(item.count) || 0
+    }));
+
+    res.json({
+      summary: {
+        total_announces: totalAnnounces,
+        active_users: activeUsers,
+        active_torrents: activeTorrents,
+        time_window_hours: timeWindow
+      },
+      event_breakdown: formattedEventBreakdown,
+      hourly_stats: formattedHourlyStats
+    });
+
+  } catch (error) {
+    console.error('获取通告统计失败:', error);
+    res.status(500).json({ error: '获取通告统计失败: ' + error.message });
+  }
+});
+
 // 获取最近的announce记录
 router.get('/announces/recent', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { page = 1, limit = 100 } = req.query;
+    const { 
+      page = 1, 
+      limit = 100, 
+      user_id = '', 
+      username = '', 
+      event = '', 
+      torrent_id = '' 
+    } = req.query;
     const offset = (page - 1) * limit;
 
+    // 构建查询条件
+    const whereConditions = {};
+    const includeConditions = [
+      { model: Torrent, attributes: ['id', 'name', 'size'] },
+      { model: User, attributes: ['id', 'username'] }
+    ];
+
+    // 用户ID筛选
+    if (user_id) {
+      const userId = parseInt(user_id, 10);
+      if (!isNaN(userId) && userId > 0) {
+        whereConditions.user_id = userId;
+      }
+    }
+
+    // 事件类型筛选
+    if (event) {
+      whereConditions.event = event;
+    }
+
+    // 种子ID筛选
+    if (torrent_id) {
+      const torrentId = parseInt(torrent_id, 10);
+      if (!isNaN(torrentId) && torrentId > 0) {
+        whereConditions.torrent_id = torrentId;
+      }
+    }
+
+    // 用户名筛选 - 通过include条件实现
+    if (username) {
+      const userIndex = includeConditions.findIndex(inc => inc.model === User);
+      if (userIndex !== -1) {
+        includeConditions[userIndex].where = {
+          username: { [Op.iLike]: `%${username}%` }
+        };
+        includeConditions[userIndex].required = true; // 确保必须匹配用户名条件
+      }
+    }
+
     const { count, rows } = await AnnounceLog.findAndCountAll({
+      where: whereConditions,
       limit: parseInt(limit),
       offset,
       order: [['announced_at', 'DESC']],
-      include: [
-        { model: Torrent, attributes: ['id', 'name', 'size'] },
-        { model: User, attributes: ['id', 'username'] }
-      ]
+      include: includeConditions,
+      distinct: true // 避免因JOIN导致的重复计数
     });
 
     const announces = rows.map(a => ({
@@ -645,7 +777,7 @@ router.get('/announces/recent', authenticateToken, requireAdmin, async (req, res
     });
   } catch (error) {
     console.error('获取最近的announce记录失败:', error);
-    res.status(500).json({ error: '获取最近的announce记录失败' });
+    res.status(500).json({ error: '获取最近的announce记录失败: ' + error.message });
   }
 });
 
