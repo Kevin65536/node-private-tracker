@@ -67,7 +67,15 @@ const AnnounceStats = () => {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== '' && value !== null && value !== undefined) {
-        params.append(key, value);
+        // 对于用户ID，确保它是有效的数字
+        if (key === 'user_id' && value) {
+          const userId = parseInt(value, 10);
+          if (!isNaN(userId) && userId > 0) {
+            params.append(key, userId.toString());
+          }
+        } else {
+          params.append(key, value);
+        }
       }
     });
     return params.toString();
@@ -78,6 +86,13 @@ const AnnounceStats = () => {
     setError(null);
     
     try {
+      // 验证用户ID格式
+      if (filters.user_id && (!Number.isInteger(parseInt(filters.user_id, 10)) || parseInt(filters.user_id, 10) <= 0)) {
+        setError('用户ID必须是大于0的整数');
+        setLoading(false);
+        return;
+      }
+
       const queryParams = buildQueryParams();
       const response = await api.get(`/admin/announces/stats?${queryParams}`);
       setStats(response.data);
@@ -119,6 +134,16 @@ const AnnounceStats = () => {
       update: '#FF9800',
     };
     return colors[event] || '#9E9E9E';
+  };
+
+  const getEventDisplayName = (event) => {
+    const names = {
+      started: '开始下载',
+      stopped: '停止下载',
+      completed: '下载完成',
+      update: '状态更新',
+    };
+    return names[event] || '状态更新';
   };
 
   const renderSummaryCards = () => (
@@ -220,33 +245,49 @@ const AnnounceStats = () => {
             </Select>
           </FormControl>
         </Grid>
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={2}>
           <TextField
             fullWidth
             size="small"
             label="用户ID"
             value={filters.user_id}
-            onChange={(e) => handleFilterChange('user_id', e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              // 只允许数字输入
+              if (value === '' || /^\d+$/.test(value)) {
+                handleFilterChange('user_id', value);
+              }
+            }}
             placeholder="输入用户ID"
+            type="number"
+            inputProps={{ min: 1 }}
           />
         </Grid>
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={2.5}>
           <FormControl fullWidth size="small">
             <InputLabel>事件类型</InputLabel>
             <Select
               value={filters.event}
               label="事件类型"
               onChange={(e) => handleFilterChange('event', e.target.value)}
+              MenuProps={{
+                PaperProps: {
+                  style: {
+                    maxHeight: 200,
+                    width: 200,
+                  },
+                },
+              }}
             >
               <MenuItem value="">所有事件</MenuItem>
-              <MenuItem value="started">开始</MenuItem>
-              <MenuItem value="stopped">停止</MenuItem>
-              <MenuItem value="completed">完成</MenuItem>
-              <MenuItem value="update">更新</MenuItem>
+              <MenuItem value="started">开始下载</MenuItem>
+              <MenuItem value="stopped">停止下载</MenuItem>
+              <MenuItem value="completed">下载完成</MenuItem>
+              <MenuItem value="update">状态更新</MenuItem>
             </Select>
           </FormControl>
         </Grid>
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={2.5}>
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
               variant="outlined"
@@ -290,7 +331,7 @@ const AnnounceStats = () => {
             )}
             {filters.event && (
               <Chip 
-                label={`事件: ${filters.event}`} 
+                label={`事件: ${getEventDisplayName(filters.event)}`} 
                 size="small" 
                 color="primary"
                 variant="outlined"
@@ -321,7 +362,7 @@ const AnnounceStats = () => {
                     outerRadius={60}
                     fill="#8884d8"
                     dataKey="count"
-                    label={({ event, count }) => `${event}: ${count}`}
+                    label={({ event, count }) => `${getEventDisplayName(event)}: ${count}`}
                   >
                     {stats.event_breakdown.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={getEventColor(entry.event)} />
@@ -338,7 +379,7 @@ const AnnounceStats = () => {
                     <Event sx={{ color: getEventColor(item.event) }} />
                   </ListItemIcon>
                   <ListItemText
-                    primary={`${item.event || 'update'} 事件`}
+                    primary={`${getEventDisplayName(item.event)} 事件`}
                     secondary={`${formatNumber(item.count)} 次`}
                   />
                 </ListItem>
@@ -361,7 +402,7 @@ const AnnounceStats = () => {
           按小时统计
         </Typography>
         {stats.hourly_stats && stats.hourly_stats.length > 0 ? (
-          <Box sx={{ height: 250 }}>
+          <Box sx={{ height: 350, width: '100%' }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={stats.hourly_stats.map(item => ({
@@ -371,11 +412,26 @@ const AnnounceStats = () => {
                     minute: '2-digit' 
                   })
                 }))}
+                margin={{
+                  top: 5,
+                  right: 30,
+                  left: 20,
+                  bottom: 5,
+                }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="hour" />
-                <YAxis />
-                <RechartsTooltip />
+                <XAxis 
+                  dataKey="hour" 
+                  tick={{ fontSize: 12 }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis tick={{ fontSize: 12 }} />
+                <RechartsTooltip 
+                  labelFormatter={(value) => `时间: ${value}`}
+                  formatter={(value) => [value, '通告数量']}
+                />
                 <Legend />
                 <Line 
                   type="monotone" 
@@ -383,6 +439,8 @@ const AnnounceStats = () => {
                   stroke="#8884d8" 
                   strokeWidth={2}
                   name="通告数量"
+                  dot={{ r: 4 }}
+                  activeDot={{ r: 6 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -430,10 +488,10 @@ const AnnounceStats = () => {
       {renderSummaryCards()}
 
       <Grid container spacing={3}>
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} lg={5}>
           {renderEventBreakdown()}
         </Grid>
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} lg={7}>
           {renderHourlyChart()}
         </Grid>
       </Grid>

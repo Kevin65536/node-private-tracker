@@ -55,6 +55,12 @@ const PeerMonitoring = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [peers, setPeers] = useState([]);
   const [announces, setAnnounces] = useState([]);
+  const [announcePagination, setAnnouncePagination] = useState({
+    current_page: 1,
+    total_pages: 1,
+    total_items: 0,
+    items_per_page: 10
+  });
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -108,7 +114,15 @@ const PeerMonitoring = () => {
     // 添加基础参数
     Object.entries(baseParams).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
-        params.append(key, value);
+        // 对于ID字段，确保它们是有效的正整数
+        if ((key === 'user_id' || key === 'torrent_id') && value) {
+          const id = parseInt(value, 10);
+          if (!isNaN(id) && id > 0) {
+            params.append(key, id.toString());
+          }
+        } else {
+          params.append(key, value);
+        }
       }
     });
     
@@ -174,6 +188,12 @@ const PeerMonitoring = () => {
       
       // 处理announces数据
       setAnnounces(announcesResponse.data.announces || []);
+      setAnnouncePagination(announcesResponse.data.pagination || {
+        current_page: 1,
+        total_pages: 1,
+        total_items: 0,
+        items_per_page: announceRowsPerPage
+      });
       
     } catch (error) {
       console.error('获取peer数据失败:', error);
@@ -327,8 +347,16 @@ const PeerMonitoring = () => {
                   size="small"
                   label="用户ID"
                   value={filters.peer_user_id}
-                  onChange={(e) => handleFilterChange('peer_user_id', e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // 只允许数字输入
+                    if (value === '' || /^\d+$/.test(value)) {
+                      handleFilterChange('peer_user_id', value);
+                    }
+                  }}
                   placeholder="输入用户ID"
+                  type="number"
+                  inputProps={{ min: 1 }}
                 />
               </Grid>
               <Grid item xs={12} md={4}>
@@ -378,8 +406,16 @@ const PeerMonitoring = () => {
                   size="small"
                   label="用户ID"
                   value={filters.announce_user_id}
-                  onChange={(e) => handleFilterChange('announce_user_id', e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // 只允许数字输入
+                    if (value === '' || /^\d+$/.test(value)) {
+                      handleFilterChange('announce_user_id', value);
+                    }
+                  }}
                   placeholder="输入用户ID"
+                  type="number"
+                  inputProps={{ min: 1 }}
                 />
               </Grid>
               <Grid item xs={12} md={3}>
@@ -417,8 +453,16 @@ const PeerMonitoring = () => {
                   size="small"
                   label="种子ID"
                   value={filters.announce_torrent_id}
-                  onChange={(e) => handleFilterChange('announce_torrent_id', e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // 只允许数字输入
+                    if (value === '' || /^\d+$/.test(value)) {
+                      handleFilterChange('announce_torrent_id', value);
+                    }
+                  }}
                   placeholder="输入种子ID"
+                  type="number"
+                  inputProps={{ min: 1 }}
                 />
               </Grid>
             </>
@@ -438,8 +482,16 @@ const PeerMonitoring = () => {
                   size="small"
                   label="用户ID"
                   value={filters.stats_user_id}
-                  onChange={(e) => handleFilterChange('stats_user_id', e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // 只允许数字输入
+                    if (value === '' || /^\d+$/.test(value)) {
+                      handleFilterChange('stats_user_id', value);
+                    }
+                  }}
                   placeholder="输入用户ID"
+                  type="number"
+                  inputProps={{ min: 1 }}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
@@ -785,13 +837,13 @@ const PeerMonitoring = () => {
       <TablePagination
         rowsPerPageOptions={[5, 10, 25, 50]}
         component="div"
-        count={1000} // 使用一个较大的数字，因为我们不知道总数
+        count={announcePagination.total_items}
         rowsPerPage={announceRowsPerPage}
         page={announcePage}
         onPageChange={handleAnnounceChangePage}
         onRowsPerPageChange={handleAnnounceChangeRowsPerPage}
         labelRowsPerPage="每页显示"
-        labelDisplayedRows={({ from, to, count }) => `${from}-${to} 条记录`}
+        labelDisplayedRows={({ from, to, count }) => `${from}-${to} 共 ${count} 条`}
       />
     </TableContainer>
   );
