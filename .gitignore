@@ -97,4 +97,4 @@ backend/tmp/
 *.temp
 
 # config files containing sensitive info
-ip-configs.json
+ip-config.json
