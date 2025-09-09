@@ -110,8 +110,6 @@ const TorrentsPage = () => {
         order: filters.order
       };
 
-      console.log('正在获取种子，参数:', params); // 调试日志
-
       const response = await torrentAPI.getTorrents(params);
       setTorrents(response.data.torrents);
       setPagination(response.data.pagination);

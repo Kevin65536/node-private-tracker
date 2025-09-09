@@ -814,28 +814,6 @@ const UserProfilePage = () => {
             <Typography variant="body2" color="text.secondary">
               支持 JPG、PNG、GIF 格式，文件大小不超过 5MB
             </Typography>
-            
-            {/* 调试信息 */}
-            {userProfile?.avatar && (
-              <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
-                <Typography variant="caption" display="block">
-                  调试信息:
-                </Typography>
-                <Typography variant="caption" display="block">
-                  头像文件名: {userProfile.avatar}
-                </Typography>
-                <Typography variant="caption" display="block">
-                  构建的URL: {getAvatarUrl(userProfile.avatar)}
-                </Typography>
-                <Button 
-                  size="small" 
-                  onClick={() => window.open(getAvatarUrl(userProfile.avatar), '_blank')}
-                  sx={{ mt: 1 }}
-                >
-                  在新窗口中测试图片
-                </Button>
-              </Box>
-            )}
           </Box>
         </DialogContent>
         <DialogActions>

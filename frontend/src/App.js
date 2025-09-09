@@ -13,12 +13,9 @@ import UploadTorrentPage from './pages/UploadTorrentPage';
 import AdminReviewPage from './pages/AdminReviewPage';
 import AdminTestPage from './pages/AdminTestPage';
 import AdminPage from './pages/AdminPage';
-import ImageTestPage from './pages/ImageTestPage';
-import NetworkTestPage from './pages/NetworkTestPage';
 import StatsPage from './components/StatsPage';
 import ClientConfigPage from './pages/ClientConfigPage';
 import UserProfilePage from './pages/UserProfilePage';
-import DebugPage from './pages/DebugPage';
 
 // 创建Material-UI主题
 const theme = createTheme({
@@ -53,9 +50,6 @@ function App() {
                 <Route path="/upload" element={<UploadTorrentPage />} />
                 <Route path="/admin/review" element={<AdminReviewPage />} />
                 <Route path="/admin/test" element={<AdminTestPage />} />
-                <Route path="/test/images" element={<ImageTestPage />} />
-                <Route path="/test/network" element={<NetworkTestPage />} />
-                <Route path="/debug" element={<DebugPage />} />
                 {/* TODO: 添加更多路由 */}
                 <Route path="/stats" element={<StatsPage />} />
                 <Route path="/profile" element={<UserProfilePage />} />

@@ -20,24 +20,14 @@ export function getImageUrl(imagePath) {
   const currentPort = window.location.port;
   const isNginxPort = !currentPort || currentPort === '80' || currentPort === '443';
   
-  console.log('🖼️ 构建图片URL:', {
-    imagePath,
-    currentPort,
-    isNginxPort,
-    protocol: window.location.protocol,
-    hostname: window.location.hostname
-  });
-  
   if (isNginxPort) {
     // 通过nginx代理访问，使用相对路径
     const url = `/uploads/${imagePath}`;
-    console.log('🔄 nginx代理模式，图片URL:', url);
     return url;
   } else {
     // 直接访问前端开发服务器，需要指向后端服务器
     const baseUrl = `http://${window.location.hostname}:3001`;
     const url = `${baseUrl}/uploads/${imagePath}`;
-    console.log('🏠 开发模式，图片URL:', url);
     return url;
   }
 }
@@ -51,10 +41,8 @@ export async function testImageUrl(imageUrl) {
   try {
     const response = await fetch(imageUrl, { method: 'HEAD' });
     const accessible = response.ok;
-    console.log(`🔍 图片URL测试: ${imageUrl} -> ${accessible ? '✅ 可访问' : '❌ 不可访问'}`);
     return accessible;
   } catch (error) {
-    console.error(`❌ 图片URL测试失败: ${imageUrl}`, error);
     return false;
   }
 }
@@ -68,11 +56,9 @@ export function preloadImage(imageUrl) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      console.log('✅ 图片预加载成功:', imageUrl);
       resolve(img);
     };
     img.onerror = (error) => {
-      console.error('❌ 图片预加载失败:', imageUrl, error);
       reject(error);
     };
     img.src = imageUrl;

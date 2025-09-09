@@ -1,13 +1,8 @@
 import axios from 'axios';
-import { getApiBaseUrl, testApiConnection, showNetworkConfig } from '../utils/networkConfig';
+import { getApiBaseUrl, testApiConnection } from '../utils/networkConfig';
 
 // 获取API基础URL
 const API_BASE_URL = getApiBaseUrl();
-
-// 在开发环境下显示网络配置信息
-if (process.env.NODE_ENV === 'development') {
-  showNetworkConfig();
-}
 
 // 创建axios实例
 const api = axios.create({
@@ -22,7 +17,6 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log('发送API请求:', config.method?.toUpperCase(), config.url, '完整URL:', API_BASE_URL + config.url);
     return config;
   },
   (error) => {

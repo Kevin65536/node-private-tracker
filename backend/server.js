@@ -140,35 +140,15 @@ app.get('/api/health', async (req, res) => {
     // 测试数据库连接
     await sequelize.authenticate();
     
-    // 获取一些基本统计信息
-    const { User, Category, Torrent, Download } = require('./models');
-    const stats = {
-      users: await User.count(),
-      categories: await Category.count(),
-      torrents: await Torrent.count(),
-      downloads: await Download.count()
-    };
-    
     res.json({ 
       status: 'OK', 
-      message: 'PT站API服务正常运行（数据库模式）',
-      timestamp: new Date().toISOString(),
-      database: {
-        connected: true,
-        dialect: sequelize.getDialect(),
-        stats
-      },
-      tracker: {
-        enabled: true,
-        announceUrl: process.env.ANNOUNCE_URL || `http://localhost:${PORT}/announce`
-      },
-      environment: process.env.NODE_ENV || 'development'
+      message: 'PT站API服务正常运行',
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     res.status(503).json({
       status: 'ERROR',
       message: '服务不可用',
-      error: error.message,
       timestamp: new Date().toISOString()
     });
   }

@@ -51,13 +51,11 @@ export function getApiBaseUrl() {
   // 1. 优先使用环境变量（如果设置了非localhost的URL）
   const envUrl = process.env.REACT_APP_API_URL;
   if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
-    console.log('🔗 使用环境变量API URL:', envUrl);
     return envUrl;
   }
   
   // 2. 根据当前访问地址智能构建API URL
   const networkInfo = getNetworkInfo();
-  console.log('🌐 当前网络信息:', networkInfo);
   
   let apiUrl;
   
@@ -69,11 +67,9 @@ export function getApiBaseUrl() {
     if (isNginxPort) {
       // 通过nginx代理访问，使用相对路径
       apiUrl = '/api';  // 使用相对路径，让nginx处理代理
-      console.log('🔄 检测到nginx代理环境，使用代理API:', apiUrl);
     } else {
       // 直接访问前端开发服务器
       apiUrl = 'http://localhost:3001/api';
-      console.log('🏠 检测到前端开发环境，使用直连:', apiUrl);
     }
   } else {
     // 局域网或其他环境
@@ -83,11 +79,9 @@ export function getApiBaseUrl() {
     if (isNginxPort) {
       // 可能通过nginx代理
       apiUrl = '/api';  // 使用相对路径，让nginx处理代理
-      console.log('🌐 检测到代理环境，使用代理API:', apiUrl);
     } else {
       // 直接访问，使用3001端口
       apiUrl = `http://${networkInfo.hostname}:3001/api`;
-      console.log('🌐 检测到直连环境，自动构建:', apiUrl);
     }
   }
   
@@ -100,7 +94,6 @@ export function getApiBaseUrl() {
 export async function testApiConnection(baseUrl, timeout = 5000) {
   try {
     const testUrl = baseUrl.replace('/api', '/health');
-    console.log('🔍 测试连接:', testUrl);
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -114,13 +107,11 @@ export async function testApiConnection(baseUrl, timeout = 5000) {
     
     if (response.ok) {
       const data = await response.json();
-      console.log('✅ API连接测试成功:', data);
       return { success: true, data };
     } else {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
   } catch (error) {
-    console.warn('❌ API连接测试失败:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -164,20 +155,16 @@ export async function discoverApiUrl() {
     candidates.unshift(process.env.REACT_APP_API_URL);
   }
   
-  console.log('🔍 开始API自动发现，候选地址:', candidates);
-  
   // 逐个测试候选地址
   for (const candidate of candidates) {
     const result = await testApiConnection(candidate, 3000);
     if (result.success) {
-      console.log('🎯 发现可用API地址:', candidate);
       return candidate;
     }
   }
   
   // 如果所有候选都失败，返回默认地址
   const fallback = candidates[0];
-  console.warn('⚠️ 未找到可用API地址，使用默认:', fallback);
   return fallback;
 }
 
@@ -205,7 +192,6 @@ export function createNetworkAwareConfig() {
   
   // 重新检查连接
   const recheck = async () => {
-    console.log('🔄 重新检查API连接...');
     return await init();
   };
   
@@ -218,32 +204,10 @@ export function createNetworkAwareConfig() {
   };
 }
 
-/**
- * 显示网络配置信息（用于调试）
- */
-export function showNetworkConfig() {
-  const networkInfo = getNetworkInfo();
-  const apiUrl = getApiBaseUrl();
-  
-  console.group('🌐 前端网络配置信息');
-  console.log('当前访问地址:', networkInfo.currentUrl);
-  console.log('主机名:', networkInfo.hostname);
-  console.log('端口:', networkInfo.port);
-  console.log('协议:', networkInfo.protocol);
-  console.log('是否本地:', networkInfo.isLocalhost);
-  console.log('是否私有IP:', networkInfo.isPrivateIP);
-  console.log('API地址:', apiUrl);
-  console.log('环境变量REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
-  console.groupEnd();
-  
-  return { networkInfo, apiUrl };
-}
-
 export default {
   getNetworkInfo,
   getApiBaseUrl,
   testApiConnection,
   discoverApiUrl,
-  createNetworkAwareConfig,
-  showNetworkConfig
+  createNetworkAwareConfig
 };
