@@ -4,7 +4,7 @@ const { exec } = require('child_process');
 
 class IPDetector {
     constructor() {
-        this.projectRoot = path.dirname(__filename);
+        this.projectRoot = path.dirname(path.dirname(__filename));  // 项目根目录
     }
 
     // 获取本机IP地址
