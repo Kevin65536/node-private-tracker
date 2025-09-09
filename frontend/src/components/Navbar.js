@@ -162,7 +162,7 @@ const Navbar = () => {
                 </MenuItem>
                 <MenuItem onClick={() => { navigate('/settings'); handleMenuClose(); }}>
                   <Settings sx={{ mr: 1 }} />
-                  用户设置
+                  客户端配置
                 </MenuItem>
                 {(user?.role === 'admin' || user?.role === 'moderator') && (
                   <MenuItem onClick={() => { navigate('/admin'); handleMenuClose(); }}>

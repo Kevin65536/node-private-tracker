@@ -16,7 +16,7 @@ import AdminPage from './pages/AdminPage';
 import ImageTestPage from './pages/ImageTestPage';
 import NetworkTestPage from './pages/NetworkTestPage';
 import StatsPage from './components/StatsPage';
-import UserSettingsPage from './pages/UserSettingsPage';
+import ClientConfigPage from './pages/ClientConfigPage';
 import UserProfilePage from './pages/UserProfilePage';
 import DebugPage from './pages/DebugPage';
 
@@ -59,7 +59,7 @@ function App() {
                 {/* TODO: 添加更多路由 */}
                 <Route path="/stats" element={<StatsPage />} />
                 <Route path="/profile" element={<UserProfilePage />} />
-                <Route path="/settings" element={<UserSettingsPage />} />
+                <Route path="/settings" element={<ClientConfigPage />} />
                 <Route path="/admin" element={<AdminPage />} />
               </Routes>
             </Box>

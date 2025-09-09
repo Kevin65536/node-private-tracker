@@ -1,43 +1,78 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Container,
+  Typography,
+  Card,
+  CardContent,
+  Grid,
+  Box,
+  Button,
+  TextField,
+  Alert,
+  CircularProgress,
+  IconButton,
+  InputAdornment,
+  Chip,
+  Divider,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Snackbar
+} from '@mui/material';
+import {
+  Visibility,
+  VisibilityOff,
+  ContentCopy,
+  Refresh,
+  Download,
+  Settings,
+  Code,
+  Computer,
+  Security
+} from '@mui/icons-material';
 import { authService } from '../services/authService';
-import './UserSettingsPage.css';
+import api from '../services/api';
 
-const UserSettingsPage = () => {
+const ClientConfigPage = () => {
   const [loading, setLoading] = useState(true);
   const [passkeyData, setPasskeyData] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
+  const [tools, setTools] = useState([]);
   const [showPasskey, setShowPasskey] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   useEffect(() => {
-    fetchUserData();
+    fetchData();
   }, []);
 
-  const fetchUserData = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // 并行获取用户信息和passkey
-      const [profileResponse, passkeyResponse] = await Promise.all([
+      // 并行获取所有数据
+      const [profileResponse, passkeyResponse, toolsResponse] = await Promise.all([
         authService.getUserProfile(),
-        authService.getUserPasskey()
+        authService.getUserPasskey(),
+        api.get('/tools/list')
       ]);
 
       setUserProfile(profileResponse.data.user);
       setPasskeyData(passkeyResponse.data);
+      setTools(toolsResponse.data.tools);
     } catch (error) {
-      console.error('获取用户数据失败:', error);
-      setError('获取用户数据失败: ' + (error.response?.data?.error || error.message));
+      console.error('获取数据失败:', error);
+      setError('获取数据失败: ' + (error.response?.data?.error || error.message));
     } finally {
       setLoading(false);
     }
   };
 
   const handleRegeneratePasskey = async () => {
-    if (!window.confirm('确定要重新生成 Passkey 吗？\n\n注意：重新生成后，所有使用旧 Passkey 的种子客户端都需要重新配置！')) {
+    if (!window.confirm('确定要重新生成 Passkey 吗？重新生成后需要更新所有 BT 客户端配置。')) {
       return;
     }
 
@@ -47,7 +82,7 @@ const UserSettingsPage = () => {
       
       const response = await authService.regeneratePasskey();
       setPasskeyData(response.data);
-      setSuccess('Passkey 重新生成成功！请更新您的种子客户端配置。');
+      showSnackbar('Passkey 重新生成成功！', 'success');
     } catch (error) {
       console.error('重新生成 Passkey 失败:', error);
       setError('重新生成 Passkey 失败: ' + (error.response?.data?.error || error.message));
@@ -56,13 +91,43 @@ const UserSettingsPage = () => {
     }
   };
 
-  const copyToClipboard = (text, label) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setSuccess(`${label} 已复制到剪贴板`);
-      setTimeout(() => setSuccess(null), 3000);
-    }).catch(() => {
-      setError('复制失败，请手动选择并复制');
-    });
+  const copyToClipboard = async (text, label) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showSnackbar(`${label} 已复制到剪贴板`, 'success');
+    } catch (err) {
+      showSnackbar('复制失败，请手动选择并复制', 'error');
+    }
+  };
+
+  const downloadTool = async (toolName) => {
+    try {
+      const response = await api.get(`/tools/ip-management/${toolName}`, {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', toolName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      showSnackbar(`${toolName} 下载成功`, 'success');
+    } catch (error) {
+      console.error('下载失败:', error);
+      showSnackbar('下载失败: ' + (error.response?.data?.error || error.message), 'error');
+    }
+  };
+
+  const showSnackbar = (message, severity = 'success') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
   };
 
   if (loading) {

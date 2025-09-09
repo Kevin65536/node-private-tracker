@@ -20,6 +20,7 @@ const trackerRoutes = require('./routes/tracker');
 const statsRoutes = require('./routes/stats');
 const securityRoutes = require('./routes/security');
 const announcementRoutes = require('./routes/announcements');
+const toolsRoutes = require('./routes/tools');
 
 // 导入统计调度器
 const statsScheduler = require('./utils/statsScheduler');
@@ -251,6 +252,7 @@ app.use('/api/admin/security', securityRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/api/tools', toolsRoutes);
 
 // Tracker 路由 (放在最后，避免拦截其他路由)
 app.use('/tracker', trackerRoutes);
