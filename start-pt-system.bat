@@ -34,6 +34,12 @@ if "!LOCAL_IP!"=="" (
 )
 
 echo 检测到本机IP地址：!LOCAL_IP!
+
+REM 获取本机主机名
+for /f "tokens=*" %%i in ('hostname') do set HOSTNAME=%%i
+echo 检测到主机名：!HOSTNAME!
+set HOSTNAME_LOCAL=!HOSTNAME!.local
+echo 将配置主机名域名：!HOSTNAME_LOCAL!
 echo.
 
 REM 检查必要的目录和文件
@@ -61,23 +67,37 @@ if not exist "backup" mkdir backup
 
 REM 备份原始配置文件
 echo 正在备份配置文件...
-copy "backend\.env" "backup\.env.backup.%date:~0,4%%date:~5,2%%date:~8,2%" >NUL
-copy "nginx\nginx.conf" "backup\nginx.conf.backup.%date:~0,4%%date:~5,2%%date:~8,2%" >NUL
-copy "nginx\pt-site.conf" "backup\pt-site.conf.backup.%date:~0,4%%date:~5,2%%date:~8,2%" >NUL
+REM 获取安全的时间戳格式
+for /f "tokens=1-3 delims=/" %%a in ('date /t') do (
+    set BACKUP_DATE=%%c%%a%%b
+)
+for /f "tokens=1-2 delims=:" %%a in ('time /t') do (
+    set BACKUP_TIME=%%a%%b
+)
+set "BACKUP_TIMESTAMP=!BACKUP_DATE!-!BACKUP_TIME!"
+set "BACKUP_TIMESTAMP=!BACKUP_TIMESTAMP: =!"
+set "BACKUP_TIMESTAMP=!BACKUP_TIMESTAMP::=!"
+copy "backend\.env" "backup\.env.backup.!BACKUP_TIMESTAMP!" >NUL
+copy "nginx\nginx.conf" "backup\nginx.conf.backup.!BACKUP_TIMESTAMP!" >NUL
+copy "nginx\pt-site.conf" "backup\pt-site.conf.backup.!BACKUP_TIMESTAMP!" >NUL
 
 REM 更新backend\.env文件中的IP地址
 echo 正在更新后端配置...
-powershell -Command "(Get-Content 'backend\.env') -replace 'ANNOUNCE_URL=http://[0-9.]+:3001', 'ANNOUNCE_URL=http://!LOCAL_IP!:3001' -replace 'FRONTEND_URL=http://[0-9.]+:3000', 'FRONTEND_URL=http://!LOCAL_IP!:3000' | Set-Content 'backend\.env'"
+powershell -Command "try { (Get-Content 'backend\.env' -ErrorAction Stop) -replace 'ANNOUNCE_URL=http://[0-9.]+:3001', 'ANNOUNCE_URL=http://!LOCAL_IP!:3001' -replace 'FRONTEND_URL=http://[0-9.]+:3000', 'FRONTEND_URL=http://!LOCAL_IP!:3000' | Set-Content 'backend\.env' -ErrorAction Stop; Write-Host '✓ 后端配置更新成功' } catch { Write-Host '⚠ 后端配置更新失败：' + $_.Exception.Message }"
 
 REM 更新nginx.conf中的IP地址
 echo 正在更新Nginx主配置...
-node update-ip-configs.js
+node IP-management/update-ip-configs.js
 if !errorlevel! equ 0 (
     echo ✓ Nginx配置更新成功
 ) else (
     echo ⚠ Nginx配置更新失败，使用备用方案
-    powershell -Command "(Get-Content 'nginx\nginx.conf') -replace 'server_name [0-9.]+;', 'server_name !LOCAL_IP!;' -replace 'https://[0-9.]+', 'https://!LOCAL_IP!' -replace 'return 301 https://[0-9.]+\$', 'return 301 https://!LOCAL_IP!$' -replace 'server_name pt\.lan \*\.local [0-9.]+;', 'server_name pt.lan *.local !LOCAL_IP!;' | Set-Content 'nginx\nginx.conf'"
+    powershell -Command "try { (Get-Content 'nginx\nginx.conf' -ErrorAction Stop) -replace 'server_name [0-9.]+;', 'server_name !LOCAL_IP!;' -replace 'https://[0-9.]+', 'https://!LOCAL_IP!' -replace 'return 301 https://[0-9.]+\$', 'return 301 https://!LOCAL_IP!$' -replace 'server_name pt\.lan \*\.local [0-9.]+;', 'server_name pt.lan *.local !LOCAL_IP!;' | Set-Content 'nginx\nginx.conf' -ErrorAction Stop; Write-Host '✓ 备用方案执行成功' } catch { Write-Host '⚠ 备用方案也失败了：' + $_.Exception.Message }"
 )
+
+REM 更新主机名.local到nginx配置
+echo 正在添加主机名域名到Nginx配置...
+powershell -Command "try { $content = Get-Content 'nginx\nginx.conf' -Raw -ErrorAction Stop; if ($content -notmatch '!HOSTNAME_LOCAL!') { $content = $content -replace '(server_name pt\.lan \*\.local[^;]*)', ('$1 !HOSTNAME_LOCAL!'); $content = $content -replace '(server_name pt\.lan \*\.local [0-9.]+ [^;]*)', ('$1 !HOSTNAME_LOCAL!'); Set-Content 'nginx\nginx.conf' -Value $content -NoNewline -ErrorAction Stop; Write-Host '✓ 已添加主机名域名 !HOSTNAME_LOCAL! 到nginx配置' } else { Write-Host '✓ 主机名域名 !HOSTNAME_LOCAL! 已存在于nginx配置中' } } catch { Write-Host '⚠ 更新nginx配置时出错：' + $_.Exception.Message }"
 
 REM 更新pt-site.conf中的上传目录路径
 echo 正在更新站点配置...
@@ -86,7 +106,7 @@ set "UPLOAD_PATH=!CURRENT_DIR!\backend\uploads"
 set "UPLOAD_PATH=!UPLOAD_PATH:\=/!"
 echo 原始路径: !CURRENT_DIR!\backend\uploads
 echo 转换路径: !UPLOAD_PATH!
-powershell -Command "$content = Get-Content 'nginx\pt-site.conf' -Raw; $newContent = $content -replace 'alias [^;]+/uploads/;', 'alias !UPLOAD_PATH!/;'; Set-Content 'nginx\pt-site.conf' -Value $newContent -NoNewline"
+powershell -Command "try { $content = Get-Content 'nginx\pt-site.conf' -Raw -ErrorAction Stop; $newContent = $content -replace 'alias [^;]+/uploads/;', 'alias !UPLOAD_PATH!/;'; Set-Content 'nginx\pt-site.conf' -Value $newContent -NoNewline -ErrorAction Stop; Write-Host '✓ 站点配置更新成功' } catch { Write-Host '⚠ 站点配置更新失败：' + $_.Exception.Message }"
 
 REM 检查并创建nginx目录结构
 echo 正在检查Nginx安装...
@@ -101,6 +121,50 @@ if exist "C:\nginx" (
     copy /Y "nginx\pt-site.conf" "C:\nginx\conf\pt-site.conf" >NUL
     echo ✓ 配置文件已更新
 )
+
+REM 检查SSL证书并询问是否重新生成
+echo.
+echo 正在检查SSL证书...
+if exist "C:\nginx\ssl\pt.lan.crt" (
+    echo ✓ 发现现有SSL证书
+    
+    REM 检查证书是否包含当前主机名
+    echo 当前主机名：!HOSTNAME!
+    echo 主机名域名：!HOSTNAME_LOCAL!
+    powershell -Command "try { $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2('C:\nginx\ssl\pt.lan.crt'); Write-Host ('✓ 证书主题: ' + $cert.Subject); $sans = $cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.17' }; if ($sans) { $sanString = $sans.Format($true); Write-Host ('✓ SAN扩展内容:'); Write-Host $sanString; $hostname = '!HOSTNAME!'; $hostnameLocal = '!HOSTNAME_LOCAL!'; if ($sanString -match [regex]::Escape($hostnameLocal) -or $sanString -match [regex]::Escape($hostname) -or $sanString -match '\*\.local') { Write-Host '✅ 证书完美支持当前主机名域名访问！' } else { Write-Host '⚠ 证书不包含当前主机名域名：' + $hostnameLocal } } else { Write-Host '⚠ 证书没有Subject Alternative Name扩展' } } catch { Write-Host ('❌ 证书读取失败: ' + $_.Exception.Message) }"
+    
+    echo.
+    set /p "REGEN_CERT=是否重新生成SSL证书以包含最新主机名？(推荐: y/N): "
+    if /i "!REGEN_CERT!"=="y" (
+        echo 正在重新生成SSL证书...
+        echo ℹ 新证书将包含 pt.lan 和 !HOSTNAME_LOCAL! 域名
+        cd /d "nginx"
+        call generate-ssl-cert.bat
+        cd /d "%~dp0"
+        echo ✓ SSL证书已重新生成
+    ) else (
+        echo ✓ 保持现有SSL证书
+        echo ℹ 注意：通过 !HOSTNAME_LOCAL! 访问可能会显示证书警告
+    )
+) else (
+    echo ⚠ 未找到SSL证书
+    set /p "GEN_CERT=是否现在生成SSL证书？(Y/n): "
+    if /i not "!GEN_CERT!"=="n" (
+        echo 正在生成SSL证书...
+        cd /d "nginx"
+        call generate-ssl-cert.bat
+        cd /d "%~dp0"
+        echo ✓ SSL证书已生成
+    ) else (
+        echo ⚠ 跳过SSL证书生成，将使用HTTP模式
+    )
+)
+
+echo.
+echo =====================================
+echo 正在停止现有服务...
+echo =====================================
+echo.
 
 REM 停止可能正在运行的服务
 echo 正在停止现有服务...
@@ -233,7 +297,7 @@ echo.
 
 REM 上传IP地址到远程服务
 echo 正在上传IP地址到远程服务...
-node upload-ip.js
+node IP-management/upload-ip.js
 if !errorlevel! equ 0 (
     echo ✓ IP地址上传成功
 ) else (
@@ -257,9 +321,12 @@ echo   后端API：    http://!LOCAL_IP!:3001
 echo   前端界面：   http://!LOCAL_IP!:3000
 if exist "C:\nginx\ssl\pt.lan.crt" (
     echo   HTTPS入口：  https://!LOCAL_IP!/ (推荐)
+    echo   HTTPS入口：  https://!HOSTNAME_LOCAL!/ (主机名域名)
     echo   HTTP入口：   http://!LOCAL_IP!/ (自动重定向到HTTPS)
+    echo   HTTP入口：   http://!HOSTNAME_LOCAL!/ (自动重定向到HTTPS)
 ) else (
     echo   HTTP入口：   http://!LOCAL_IP!/
+    echo   HTTP入口：   http://!HOSTNAME_LOCAL!/
 )
 echo.
 echo Tracker服务：

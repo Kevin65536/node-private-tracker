@@ -5,6 +5,12 @@ REM 支持多域名的自签名证书 - 自动检测当前IP
 
 echo 正在为PT站生成多域名SSL证书...
 
+REM 获取本机主机名
+for /f "tokens=*" %%i in ('hostname') do set HOSTNAME=%%i
+set HOSTNAME_LOCAL=!HOSTNAME!.local
+echo ✓ 检测到主机名：!HOSTNAME!
+echo ✓ 将支持域名：!HOSTNAME_LOCAL!
+
 REM 获取本机IP地址
 echo 正在检测本机IP地址...
 for /f "tokens=2 delims=:" %%i in ('ipconfig ^| findstr /i "IPv4" ^| findstr "172.21"') do (
@@ -67,6 +73,8 @@ echo [alt_names] >> pt.conf
 echo DNS.1 = pt.lan >> pt.conf
 echo DNS.2 = localhost >> pt.conf
 echo DNS.3 = *.local >> pt.conf
+echo DNS.4 = !HOSTNAME_LOCAL! >> pt.conf
+echo DNS.5 = !HOSTNAME! >> pt.conf
 echo IP.1 = 127.0.0.1 >> pt.conf
 echo IP.2 = ::1 >> pt.conf
 echo IP.3 = !LOCAL_IP! >> pt.conf
@@ -104,6 +112,8 @@ echo 支持的域名和IP：
 echo   - pt.lan
 echo   - localhost  
 echo   - *.local
+echo   - !HOSTNAME_LOCAL! (主机名域名)
+echo   - !HOSTNAME! (主机名)
 echo   - 127.0.0.1
 echo   - ::1
 echo   - !LOCAL_IP! (自动检测)
