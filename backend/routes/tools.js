@@ -9,8 +9,8 @@ router.get('/ip-management/:filename', authenticateToken, async (req, res) => {
   try {
     const { filename } = req.params;
     
-    // 验证文件名安全性
-    if (!['ip-config.json', 'client-launcher.bat'].includes(filename)) {
+    // 验证文件名安全性 - 现在只提供简化版启动器
+    if (!['client-launcher.bat'].includes(filename)) {
       return res.status(404).json({ error: '文件不存在' });
     }
     
@@ -49,15 +49,9 @@ router.get('/list', authenticateToken, async (req, res) => {
   try {
     const tools = [
       {
-        name: 'ip-config.json',
-        title: 'IP配置文件',
-        description: '客户端自动获取服务器IP地址的配置文件',
-        size: 'JSON配置'
-      },
-      {
-        name: 'client-launcher.bat',
-        title: '客户端启动器',
-        description: 'Windows批处理脚本，自动配置hosts并提供PT站访问入口',
+        name: 'client-launcher-simple.bat',
+        title: 'PT站客户端启动器',
+        description: '一键启动器，自动获取最新服务器IP并配置hosts文件。无需额外配置，直接双击即可使用。',
         size: '批处理脚本'
       }
     ];

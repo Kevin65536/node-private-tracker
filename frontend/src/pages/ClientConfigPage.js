@@ -271,15 +271,15 @@ const ClientConfigPage = () => {
         )}
 
         {/* 客户端工具下载 */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
                 <Computer sx={{ mr: 1 }} />
-                客户端工具
+                客户端启动器
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                下载配置工具，简化客户端设置过程。
+                下载一键启动器，无需任何配置即可自动连接到PT站。
               </Typography>
 
               <List disablePadding>
@@ -303,12 +303,12 @@ const ClientConfigPage = () => {
                       />
                       <Button
                         variant="contained"
-                        size="small"
+                        size="large"
                         onClick={() => downloadTool(tool.name)}
                         startIcon={<Download />}
-                        sx={{ minWidth: 120 }}
+                        sx={{ minWidth: 140 }}
                       >
-                        下载
+                        立即下载
                       </Button>
                     </ListItem>
                     {index < tools.length - 1 && <Divider />}
@@ -332,7 +332,7 @@ const ClientConfigPage = () => {
               <Typography variant="h6" gutterBottom>
                 📖 使用说明
               </Typography>
-              <Grid container spacing={2}>
+              <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
                   <Typography variant="subtitle1" gutterBottom>Passkey 配置</Typography>
                   <Typography variant="body2" color="text.secondary">
@@ -342,11 +342,38 @@ const ClientConfigPage = () => {
                   </Typography>
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle1" gutterBottom>客户端工具</Typography>
+                  <Typography variant="subtitle1" gutterBottom>客户端启动器</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    • ip-config.json: 用于自动获取服务器地址<br/>
-                    • client-launcher.bat: Windows 启动脚本<br/>
-                    • 需要管理员权限以修改 hosts 文件
+                    • 下载后直接双击运行，无需任何配置<br/>
+                    • 自动获取最新的服务器IP地址，绕过CDN缓存<br/>
+                    • 以管理员身份运行可自动更新hosts文件<br/>
+                    • 支持一键打开各种服务入口
+                  </Typography>
+                </Grid>
+              </Grid>
+              
+              <Divider sx={{ my: 3 }} />
+              
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle1" gutterBottom sx={{ color: 'primary.main' }}>
+                    🚀 启动器功能
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    • 自动检测管理员权限<br/>
+                    • 智能绕过GitHub CDN缓存<br/>
+                    • 一键刷新服务器信息<br/>
+                    • 便捷的浏览器快捷方式
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle1" gutterBottom sx={{ color: 'warning.main' }}>
+                    ⚠️ 注意事项
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    • 首次运行建议右键"以管理员身份运行"<br/>
+                    • 如果无法自动更新hosts，请手动配置<br/>
+                    • 启动器会自动获取最新IP，无需手动更新
                   </Typography>
                 </Grid>
               </Grid>
