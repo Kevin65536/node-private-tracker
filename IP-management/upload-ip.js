@@ -7,7 +7,7 @@ const { exec } = require('child_process');
 
 class IPUploader {
     constructor() {
-        this.configPath = path.join(__dirname, 'ip-config.json');
+        this.configPath = path.join(__dirname, 'upload-config.json');
         this.config = this.loadConfig();
     }
 
@@ -16,7 +16,7 @@ class IPUploader {
             const configContent = fs.readFileSync(this.configPath, 'utf8');
             return JSON.parse(configContent);
         } catch (error) {
-            console.error('错误：无法加载配置文件 ip-config.json');
+            console.error('错误：无法加载配置文件 upload-config.json');
             console.error('请确保配置文件存在并格式正确');
             process.exit(1);
         }

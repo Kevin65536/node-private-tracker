@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-REM PT站客户端启动器
+REM PT站客户端启动器（简化版）
 REM 自动获取最新服务器地址并提供访问入口
 
 echo =====================================
@@ -9,43 +9,20 @@ echo PT站客户端启动器
 echo =====================================
 echo.
 
-REM 配置文件路径
-set "CONFIG_FILE=%~dp0ip-config.json"
+REM 固定配置（无需配置文件）
+set "IP_SOURCE_URL_BASE=https://gist.githubusercontent.com/Kevin65536/1cdd60ebfa68d6af5302b87f391be522/raw/pt-server-ip.json"
+set "DOMAIN=pt.lan"
 set "TEMP_IP_FILE=%TEMP%\pt-server-ip.json"
 
-REM 检查配置文件
-if not exist "%CONFIG_FILE%" (
-    echo 错误：配置文件 ip-config.json 不存在！
-    echo 请确保客户端启动器与配置文件在同一目录。
-    pause
-    exit /b 1
+REM 添加时间戳参数绕过GitHub CDN缓存
+for /f "tokens=*" %%i in ('powershell -Command "Get-Date -Format 'yyyyMMddHHmmss'"') do (
+    set "TIMESTAMP=%%i"
 )
+set "IP_SOURCE_URL=%IP_SOURCE_URL_BASE%?t=%TIMESTAMP%"
 
-REM 读取配置信息
-echo 正在读取配置信息...
-for /f "tokens=*" %%i in ('powershell -Command "try { $config = Get-Content '%CONFIG_FILE%' | ConvertFrom-Json; Write-Output $config.client.ipSourceUrl } catch { Write-Output 'ERROR' }"') do (
-    set "IP_SOURCE_URL=%%i"
-)
-
-for /f "tokens=*" %%i in ('powershell -Command "try { $config = Get-Content '%CONFIG_FILE%' | ConvertFrom-Json; Write-Output $config.client.domain } catch { Write-Output 'pt.lan' }"') do (
-    set "DOMAIN=%%i"
-)
-
-if "%IP_SOURCE_URL%"=="ERROR" (
-    echo 错误：无法读取配置文件！
-    pause
-    exit /b 1
-)
-
-if "%IP_SOURCE_URL%"=="" (
-    echo 错误：未配置IP源地址！
-    echo 请在 ip-config.json 中配置 client.ipSourceUrl
-    pause
-    exit /b 1
-)
-
-echo ✓ 配置读取完成
-echo   IP源地址: %IP_SOURCE_URL%
+echo 配置信息:
+echo   IP源地址: %IP_SOURCE_URL_BASE%
+echo   实际请求: %IP_SOURCE_URL%
 echo   域名: %DOMAIN%
 echo.
 
@@ -68,7 +45,7 @@ powershell -Command "try { Invoke-RestMethod -Uri '%IP_SOURCE_URL%' -OutFile '%T
 
 if not exist "%TEMP_IP_FILE%" (
     echo ✗ 无法获取服务器信息！
-    echo   请检查网络连接和IP源地址配置
+    echo   请检查网络连接
     echo   IP源地址: %IP_SOURCE_URL%
     pause
     exit /b 1
@@ -248,7 +225,58 @@ goto menu
 :refresh
 echo.
 echo 正在刷新服务器信息...
-goto :start_refresh
+REM 重新生成时间戳绕过缓存
+for /f "tokens=*" %%i in ('powershell -Command "Get-Date -Format 'yyyyMMddHHmmss'"') do (
+    set "TIMESTAMP=%%i"
+)
+set "IP_SOURCE_URL=%IP_SOURCE_URL_BASE%?t=%TIMESTAMP%"
+echo 使用新的时间戳: %TIMESTAMP%
+REM 重新开始获取IP信息的过程
+powershell -Command "try { Invoke-RestMethod -Uri '%IP_SOURCE_URL%' -OutFile '%TEMP_IP_FILE%' -TimeoutSec 10; Write-Output 'SUCCESS' } catch { Write-Output 'FAILED' }" >nul 2>&1
+
+if not exist "%TEMP_IP_FILE%" (
+    echo ✗ 无法获取服务器信息！
+    goto menu
+)
+
+REM 重新解析服务器信息
+for /f "tokens=*" %%i in ('powershell -Command "try { $data = Get-Content '%TEMP_IP_FILE%' | ConvertFrom-Json; Write-Output $data.ip } catch { Write-Output 'ERROR' }"') do (
+    set "SERVER_IP=%%i"
+)
+
+for /f "tokens=*" %%i in ('powershell -Command "try { $data = Get-Content '%TEMP_IP_FILE%' | ConvertFrom-Json; Write-Output $data.timestamp } catch { Write-Output '' }"') do (
+    set "TIMESTAMP=%%i"
+)
+
+for /f "tokens=*" %%i in ('powershell -Command "try { $data = Get-Content '%TEMP_IP_FILE%' | ConvertFrom-Json; Write-Output $data.server.name } catch { Write-Output '未知服务器' }"') do (
+    set "SERVER_NAME=%%i"
+)
+
+echo ✓ 服务器信息已刷新
+echo   服务器名称: %SERVER_NAME%
+echo   IP地址: %SERVER_IP%
+if not "%TIMESTAMP%"=="" (
+    echo   更新时间: %TIMESTAMP%
+)
+echo.
+
+REM 如果有管理员权限，更新hosts
+if "%IS_ADMIN%"=="1" (
+    REM 移除旧的PT站域名条目
+    powershell -Command "try { $content = Get-Content 'C:\Windows\System32\drivers\etc\hosts' | Where-Object { $_ -notmatch '%DOMAIN%' -and $_ -notmatch '# PT-Client-Launcher' }; Set-Content 'C:\Windows\System32\drivers\etc\hosts' -Value $content; Write-Output 'SUCCESS' } catch { Write-Output 'FAILED' }" >nul 2>&1
+    
+    REM 添加新的域名条目
+    echo.>> "C:\Windows\System32\drivers\etc\hosts"
+    echo # PT-Client-Launcher - Auto Generated>> "C:\Windows\System32\drivers\etc\hosts"
+    echo %SERVER_IP% %DOMAIN%>> "C:\Windows\System32\drivers\etc\hosts"
+    echo # End PT-Client-Launcher>> "C:\Windows\System32\drivers\etc\hosts"
+    
+    echo ✓ hosts文件已更新
+    ipconfig /flushdns >nul 2>&1
+)
+
+del "%TEMP_IP_FILE%" >nul 2>&1
+goto menu
 
 :run_as_admin
 if "%IS_ADMIN%"=="1" (
@@ -258,12 +286,6 @@ if "%IS_ADMIN%"=="1" (
 echo 正在以管理员身份重新启动...
 powershell -Command "Start-Process '%~f0' -Verb RunAs"
 exit /b 0
-
-:start_refresh
-REM 重新开始获取IP信息的过程
-echo.
-echo 正在重新获取服务器信息...
-goto :eof
 
 :exit_script
 echo.

@@ -1,0 +1,36 @@
+{
+    "upload": {
+        "enabled": true,
+        "method": "gist",
+        "config": {
+            "gist": {
+                "token": "YOUR_GITHUB_TOKEN_HERE",
+                "gistId": "YOUR_GIST_ID_HERE", 
+                "filename": "pt-server-ip.json"
+            },
+            "webhook": {
+                "url": "https://your-webhook-url.com/ip",
+                "headers": {
+                    "Authorization": "Bearer YOUR_TOKEN_HERE"
+                }
+            },
+            "gitee": {
+                "token": "YOUR_GITEE_TOKEN_HERE",
+                "owner": "your-username",
+                "repo": "pt-server-config",
+                "path": "ip.json",
+                "branch": "main"
+            }
+        }
+    },
+    "server": {
+        "name": "PT服务器",
+        "description": "LZU PT站点服务器",
+        "ports": {
+            "frontend": 3000,
+            "backend": 3001,
+            "nginx": 80,
+            "nginx_ssl": 443
+        }
+    }
+}
