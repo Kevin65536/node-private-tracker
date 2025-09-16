@@ -49,7 +49,7 @@ router.get('/list', authenticateToken, async (req, res) => {
   try {
     const tools = [
       {
-        name: 'client-launcher-simple.bat',
+        name: 'client-launcher.bat',
         title: 'PT站客户端启动器',
         description: '一键启动器，自动获取最新服务器IP并配置hosts文件。无需额外配置，直接双击即可使用。',
         size: '批处理脚本'
