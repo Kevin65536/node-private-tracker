@@ -53,6 +53,16 @@ const upload = multer({
   }
 });
 
+// 自定义错误类型
+class TorrentParseError extends Error {
+  constructor(message, type, details = null) {
+    super(message);
+    this.name = 'TorrentParseError';
+    this.type = type; // 'invalid_file', 'not_private', 'invalid_tracker', 'missing_passkey'
+    this.details = details;
+  }
+}
+
 // 解析种子文件并提取信息
 const parseTorrentFile = async (filePath) => {
   try {
@@ -60,7 +70,7 @@ const parseTorrentFile = async (filePath) => {
     const torrent = bencode.decode(data);
     
     if (!torrent.info) {
-      throw new Error('无效的种子文件：缺少info字段');
+      throw new TorrentParseError('无效的种子文件：缺少info字段', 'invalid_file');
     }
     
     // 计算info_hash
@@ -69,7 +79,57 @@ const parseTorrentFile = async (filePath) => {
     
     // 验证是否为私有种子
     if (!torrent.info.private || torrent.info.private !== 1) {
-      throw new Error('只能上传私有种子文件（private=1）');
+      throw new TorrentParseError(
+        '种子文件必须设置为私有种子',
+        'not_private',
+        {
+          suggestion: '请在制作种子时勾选"私有种子"选项',
+          current_setting: torrent.info.private || 0
+        }
+      );
+    }
+    
+    // 验证 tracker URL
+    const announceUrl = torrent.announce ? torrent.announce.toString() : '';
+    const passkeyPattern = /\/tracker\/announce\/([a-f0-9]{32})$/i;
+    
+    if (!announceUrl) {
+      throw new TorrentParseError(
+        '种子文件缺少 tracker URL',
+        'invalid_tracker',
+        {
+          suggestion: '请在制作种子时填写正确的 tracker URL'
+        }
+      );
+    }
+    
+    const passkeyMatch = announceUrl.match(passkeyPattern);
+    if (!passkeyMatch) {
+      // 检查是否包含我们的域名但没有正确的passkey格式
+      const baseUrl = process.env.ANNOUNCE_URL || 'http://localhost:3001';
+      const isOurTracker = announceUrl.includes(baseUrl.replace(/^https?:\/\//, ''));
+      
+      if (isOurTracker) {
+        throw new TorrentParseError(
+          'tracker URL 格式不正确，缺少有效的 passkey',
+          'missing_passkey',
+          {
+            suggestion: '请使用包含您 passkey 的完整 tracker URL',
+            current_url: announceUrl,
+            warning: '这可能导致无法正确统计上传下载量，且找不到做种者'
+          }
+        );
+      } else {
+        throw new TorrentParseError(
+          'tracker URL 不是本站的 tracker 地址',
+          'invalid_tracker',
+          {
+            suggestion: '请使用本站提供的 tracker URL 重新制作种子',
+            current_url: announceUrl,
+            warning: '这可能导致无法正确统计上传下载量，且找不到做种者'
+          }
+        );
+      }
     }
     
     // 安全的字符串转换函数
@@ -125,7 +185,18 @@ const parseTorrentFile = async (filePath) => {
     };
   } catch (error) {
     console.error('解析种子文件失败:', error);
-    throw new Error(`种子文件解析失败: ${error.message}`);
+    
+    // 如果是我们的自定义错误，直接抛出
+    if (error instanceof TorrentParseError) {
+      throw error;
+    }
+    
+    // 其他错误包装为通用解析错误
+    throw new TorrentParseError(
+      `种子文件解析失败: ${error.message}`,
+      'invalid_file',
+      { original_error: error.message }
+    );
   }
 };
 
@@ -422,10 +493,21 @@ router.post('/', authenticateToken, upload.fields([
     } catch (parseError) {
       // 删除上传的文件
       await fs.unlink(torrentFile.path).catch(() => {});
-      return res.status(400).json({
-        error: '种子文件解析失败',
-        message: parseError.message
-      });
+      
+      // 根据错误类型返回不同的响应
+      if (parseError instanceof TorrentParseError) {
+        return res.status(400).json({
+          error: parseError.message,
+          error_type: parseError.type,
+          details: parseError.details
+        });
+      } else {
+        return res.status(400).json({
+          error: '种子文件解析失败',
+          error_type: 'invalid_file',
+          message: parseError.message
+        });
+      }
     }
 
     // 检查是否已存在相同的种子

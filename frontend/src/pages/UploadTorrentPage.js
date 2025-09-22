@@ -182,7 +182,80 @@ const UploadTorrentPage = () => {
 
     } catch (error) {
       console.error('上传失败:', error);
-      setError(error.response?.data?.error || '上传失败，请稍后重试');
+      
+      // 处理详细错误信息
+      const errorData = error.response?.data;
+      let errorMessage = '';
+      
+      if (errorData && errorData.error_type) {
+        switch (errorData.error_type) {
+          case 'not_private':
+            errorMessage = (
+              <div>
+                <div><strong>种子私有性设置错误</strong></div>
+                <div>{errorData.error}</div>
+                {errorData.details?.suggestion && (
+                  <div style={{ marginTop: '8px', fontSize: '14px', color: '#666' }}>
+                    💡 建议：{errorData.details.suggestion}
+                  </div>
+                )}
+              </div>
+            );
+            break;
+            
+          case 'missing_passkey':
+            errorMessage = (
+              <div>
+                <div><strong>Tracker URL 配置问题</strong></div>
+                <div>{errorData.error}</div>
+                {errorData.details?.warning && (
+                  <div style={{ marginTop: '8px', fontSize: '14px', color: '#f57c00' }}>
+                    ⚠️ 警告：{errorData.details.warning}
+                  </div>
+                )}
+                {errorData.details?.suggestion && (
+                  <div style={{ marginTop: '4px', fontSize: '14px', color: '#666' }}>
+                    💡 建议：{errorData.details.suggestion}
+                  </div>
+                )}
+              </div>
+            );
+            break;
+            
+          case 'invalid_tracker':
+            errorMessage = (
+              <div>
+                <div><strong>Tracker URL 错误</strong></div>
+                <div>{errorData.error}</div>
+                {errorData.details?.warning && (
+                  <div style={{ marginTop: '8px', fontSize: '14px', color: '#f57c00' }}>
+                    ⚠️ 警告：{errorData.details.warning}
+                  </div>
+                )}
+                {errorData.details?.suggestion && (
+                  <div style={{ marginTop: '4px', fontSize: '14px', color: '#666' }}>
+                    💡 建议：{errorData.details.suggestion}
+                  </div>
+                )}
+                {errorData.details?.current_url && (
+                  <div style={{ marginTop: '4px', fontSize: '12px', color: '#999', wordBreak: 'break-all' }}>
+                    当前URL：{errorData.details.current_url}
+                  </div>
+                )}
+              </div>
+            );
+            break;
+            
+          case 'invalid_file':
+          default:
+            errorMessage = errorData.error || '种子文件解析失败';
+            break;
+        }
+      } else {
+        errorMessage = errorData?.error || '上传失败，请稍后重试';
+      }
+      
+      setError(errorMessage);
       setUploadProgress(0);
     } finally {
       setLoading(false);
@@ -222,7 +295,11 @@ const UploadTorrentPage = () => {
                 • 最大文件大小: {(uploadInfo.maxFileSize / 1024 / 1024).toFixed(1)}MB<br/>
                 • 允许的文件类型: {uploadInfo.allowedTypes.join(', ')}<br/>
                 • 上传的种子需要管理员审核后才能公开<br/>
-                • 请确保上传的内容符合站点规则
+                <br/>
+                <strong>制作种子要求：</strong><br/>
+                • 必须勾选"私有种子"选项<br/>
+                • 必须使用包含您 passkey 的 tracker URL<br/>
+                • 您可以在客户端配置页面获取 tracker URL 和 passkey
               </Typography>
             </CardContent>
           </Card>
@@ -230,7 +307,11 @@ const UploadTorrentPage = () => {
 
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
+            {typeof error === 'string' ? error : (
+              <Box>
+                {error}
+              </Box>
+            )}
           </Alert>
         )}
 
