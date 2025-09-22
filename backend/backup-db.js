@@ -50,7 +50,14 @@ class ImprovedDatabaseBackup {
           if (stats.size > 0) {
             console.log('✅ 备份完成');
             console.log(`📊 文件大小: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
-            resolve(backupPath);
+            
+            // 验证并修复备份文件（处理PostgreSQL 17.6的新命令）
+            this.validateAndFixBackup(backupPath).then(fixedPath => {
+              resolve(fixedPath);
+            }).catch(err => {
+              console.warn('⚠️ 备份文件修复失败，使用原始文件:', err.message);
+              resolve(backupPath);
+            });
           } else {
             console.error('❌ 备份文件为空');
             reject(new Error('备份文件为空'));
@@ -334,6 +341,104 @@ class ImprovedDatabaseBackup {
   sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
+
+  /**
+   * 验证并修复备份文件
+   * 处理PostgreSQL 17.6中的\restrict和\unrestrict命令
+   */
+  async validateAndFixBackup(backupPath) {
+    console.log('🔍 验证备份文件兼容性...');
+    
+    try {
+      const content = fs.readFileSync(backupPath, 'utf8');
+      
+      // 检查是否包含不兼容的psql元命令
+      const hasRestrictCommands = content.includes('\\restrict') || content.includes('\\unrestrict');
+      
+      if (hasRestrictCommands) {
+        console.log('⚠️ 检测到PostgreSQL 17.6兼容性问题');
+        console.log('🔧 正在修复备份文件...');
+        
+        // 移除\restrict和\unrestrict命令
+        const fixedContent = content
+          .split('\n')
+          .filter(line => !line.match(/^\\(restrict|unrestrict)/))
+          .join('\n');
+        
+        // 创建修复后的文件
+        const fixedPath = backupPath.replace('.sql', '_fixed.sql');
+        fs.writeFileSync(fixedPath, fixedContent, 'utf8');
+        
+        const originalStats = fs.statSync(backupPath);
+        const fixedStats = fs.statSync(fixedPath);
+        
+        console.log('✅ 备份文件修复完成');
+        console.log(`📊 原始文件: ${(originalStats.size / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`📊 修复文件: ${(fixedStats.size / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`📂 修复文件: ${fixedPath}`);
+        
+        return fixedPath;
+      } else {
+        console.log('✅ 备份文件兼容性检查通过');
+        return backupPath;
+      }
+    } catch (error) {
+      console.warn('⚠️ 备份文件验证失败:', error.message);
+      return backupPath;
+    }
+  }
+
+  /**
+   * 修复现有的不兼容备份文件
+   */
+  async fixIncompatibleBackup(inputPath, outputPath = null) {
+    if (!fs.existsSync(inputPath)) {
+      throw new Error(`备份文件不存在: ${inputPath}`);
+    }
+
+    const fixedPath = outputPath || inputPath.replace('.sql', '_fixed.sql');
+    
+    console.log('🔧 开始修复不兼容的备份文件...');
+    console.log(`📂 输入文件: ${inputPath}`);
+    console.log(`📂 输出文件: ${fixedPath}`);
+
+    try {
+      const content = fs.readFileSync(inputPath, 'utf8');
+      
+      // 统计需要移除的命令
+      const restrictLines = content.split('\n').filter(line => line.match(/^\\restrict/));
+      const unrestrictLines = content.split('\n').filter(line => line.match(/^\\unrestrict/));
+      
+      console.log(`🔍 发现问题命令:`);
+      console.log(`  \\restrict: ${restrictLines.length}个`);
+      console.log(`  \\unrestrict: ${unrestrictLines.length}个`);
+      
+      if (restrictLines.length === 0 && unrestrictLines.length === 0) {
+        console.log('✅ 备份文件无需修复');
+        return inputPath;
+      }
+      
+      // 移除问题命令
+      const fixedContent = content
+        .split('\n')
+        .filter(line => !line.match(/^\\(restrict|unrestrict)/))
+        .join('\n');
+      
+      fs.writeFileSync(fixedPath, fixedContent, 'utf8');
+      
+      const originalStats = fs.statSync(inputPath);
+      const fixedStats = fs.statSync(fixedPath);
+      
+      console.log('✅ 备份文件修复完成');
+      console.log(`📊 原始文件: ${(originalStats.size / 1024 / 1024).toFixed(2)} MB`);
+      console.log(`📊 修复文件: ${(fixedStats.size / 1024 / 1024).toFixed(2)} MB`);
+      
+      return fixedPath;
+    } catch (error) {
+      console.error('❌ 修复失败:', error.message);
+      throw error;
+    }
+  }
 }
 
 // 命令行接口
@@ -347,8 +452,8 @@ async function main() {
       case 'backup':
         const backupPath = await backup.createBackup(args[1]);
         console.log(`\n📋 使用说明:`);
-        console.log(`安全恢复: node backup-db-improved.js restore-safe "${backupPath}" --force-rebuild`);
-        console.log(`增量恢复: node backup-db-improved.js restore-incremental "${backupPath}"`);
+        console.log(`安全恢复: node backup-db.js restore-safe "${backupPath}" --force-rebuild`);
+        console.log(`增量恢复: node backup-db.js restore-incremental "${backupPath}"`);
         break;
 
       case 'restore-safe':
@@ -376,6 +481,16 @@ async function main() {
         await backup.testConnection();
         break;
 
+      case 'fix':
+        if (!args[1]) {
+          console.error('❌ 请提供备份文件路径');
+          process.exit(1);
+        }
+        const fixedPath = await backup.fixIncompatibleBackup(args[1], args[2]);
+        console.log(`\n📋 修复完成，可以使用以下命令恢复:`);
+        console.log(`node backup-db.js restore-safe "${fixedPath}" --force-rebuild`);
+        break;
+
       default:
         console.log('📋 改进的数据库备份工具使用说明:');
         console.log('');
@@ -383,6 +498,7 @@ async function main() {
         console.log('  backup [输出路径]                    - 创建数据库备份');
         console.log('  restore-safe <备份文件> [--force-rebuild] - 安全恢复 (推荐)');
         console.log('  restore-incremental <备份文件>       - 增量恢复 (可能有冲突)');
+        console.log('  fix <备份文件> [输出路径]            - 修复不兼容的备份文件');
         console.log('  create                               - 创建数据库');
         console.log('  test                                 - 测试数据库连接');
         console.log('');
@@ -390,12 +506,14 @@ async function main() {
         console.log('  🟢 安全恢复: 检查现有数据，避免冲突');
         console.log('  🟡 强制重建: 删除现有数据库，完全重建 (--force-rebuild)');
         console.log('  🔴 增量恢复: 在现有数据上恢复，可能产生冲突');
+        console.log('  🔧 修复文件: 移除PostgreSQL 17.6不兼容命令');
         console.log('');
         console.log('示例:');
-        console.log('  node backup-db-improved.js backup');
-        console.log('  node backup-db-improved.js restore-safe ./backup.sql');
-        console.log('  node backup-db-improved.js restore-safe ./backup.sql --force-rebuild');
-        console.log('  node backup-db-improved.js restore-incremental ./backup.sql');
+        console.log('  node backup-db.js backup');
+        console.log('  node backup-db.js restore-safe ./backup.sql');
+        console.log('  node backup-db.js restore-safe ./backup.sql --force-rebuild');
+        console.log('  node backup-db.js restore-incremental ./backup.sql');
+        console.log('  node backup-db.js fix ./backup_problematic.sql');
         break;
     }
   } catch (error) {
