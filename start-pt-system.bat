@@ -5,13 +5,24 @@ REM ========================================
 REM PT站系统一键启动脚本
 REM ========================================
 REM 功能：自动配置IP地址并启动所有必要的服务
-REM 版本：2.0 - 结构化重构版本
-REM 更新：2025年9月9日
+REM 版本：2.1 - 添加本地调试模式选项
+REM 更新：2025年9月22日
 REM ========================================
 
 echo ========================================
-echo PT站系统一键启动脚本 v2.0
+echo PT站系统一键启动脚本 v2.1
 echo ========================================
+echo.
+
+REM 询问是否为本地调试模式
+set /p "DEBUG_MODE=是否启用本地调试模式？(不上传IP地址) (y/N): "
+if /i "!DEBUG_MODE!"=="y" (
+    set "LOCAL_DEBUG=1"
+    echo ✓ 已启用本地调试模式，将跳过IP地址上传
+) else (
+    set "LOCAL_DEBUG=0"
+    echo ✓ 正常模式，将上传IP地址到远程服务
+)
 echo.
 
 REM 初始化变量
@@ -248,13 +259,17 @@ if !errorlevel! equ 0 (
     set /a DEPLOY_ERROR+=1
 )
 
-echo   上传IP地址到远程服务...
-node IP-management/upload-ip.js >NUL 2>&1
-if !errorlevel! equ 0 (
-    echo   ✓ IP地址上传成功
+if "!LOCAL_DEBUG!"=="1" (
+    echo   ⚠ 本地调试模式：跳过IP地址上传
 ) else (
-    echo   ⚠ IP地址上传失败
-    set /a DEPLOY_WARNING+=1
+    echo   上传IP地址到远程服务...
+    node IP-management/upload-ip.js >NUL 2>&1
+    if !errorlevel! equ 0 (
+        echo   ✓ IP地址上传成功
+    ) else (
+        echo   ⚠ IP地址上传失败
+        set /a DEPLOY_WARNING+=1
+    )
 )
 exit /b 0
 
@@ -326,6 +341,9 @@ echo Tracker服务：
 echo   Announce：   http://!LOCAL_IP!:3001/announce
 echo.
 echo 状态信息：
+if "!LOCAL_DEBUG!"=="1" (
+    echo   🔧 本地调试模式 - 未上传IP地址
+)
 if !DEPLOY_ERROR! equ 0 (
     if !DEPLOY_WARNING! equ 0 (
         echo   ✅ 所有服务正常启动
